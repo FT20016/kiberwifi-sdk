@@ -12,8 +12,12 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSpecifier;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.InputFilter;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -26,7 +30,10 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
-    private static final String TARGET_SSID = "TESTAP5";
+    private static final String SSID_PREFIX = "KIBERSCOPE-";
+    private static final int SSID_SUFFIX_LENGTH = 5;
+    private static final String PREFS_NAME = "directwifi2_prefs";
+    private static final String PREF_SSID_SUFFIX = "pref_ssid_suffix";
 
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
@@ -34,6 +41,10 @@ public class MainActivity extends AppCompatActivity {
     private TextView statusTextView;
     private TextView dualWifiStatusTextView;
     private Button connectButton;
+    private TextView ssidPrefixTextView;
+    private EditText ssidSuffixEditText;
+    private String lastSavedSuffix;
+    private boolean suppressBlurRevert = false;
 
     private boolean isConnected = false;
 
@@ -47,6 +58,30 @@ public class MainActivity extends AppCompatActivity {
         statusTextView = findViewById(R.id.statusTextView);
         dualWifiStatusTextView = findViewById(R.id.dualWifiStatusTextView);
         connectButton = findViewById(R.id.connectButton);
+        ssidPrefixTextView = findViewById(R.id.ssidPrefixTextView);
+        ssidSuffixEditText = findViewById(R.id.ssidSuffixEditText);
+
+        findViewById(R.id.main).setOnTouchListener((v, event) -> {
+            if (!ssidSuffixEditText.hasFocus()) {
+                return false;
+            }
+            int[] location = new int[2];
+            ssidSuffixEditText.getLocationOnScreen(location);
+            float x = event.getRawX();
+            float y = event.getRawY();
+            boolean inside = x >= location[0]
+                    && x <= location[0] + ssidSuffixEditText.getWidth()
+                    && y >= location[1]
+                    && y <= location[1] + ssidSuffixEditText.getHeight();
+            if (!inside) {
+                ssidSuffixEditText.setText(lastSavedSuffix);
+                ssidSuffixEditText.setSelection(ssidSuffixEditText.getText().length());
+                ssidSuffixEditText.clearFocus();
+            }
+            return false;
+        });
+
+        initSsidEditor();
 
         // Il pulsante è sempre attivo quando non connesso
         connectButton.setEnabled(true);
@@ -58,6 +93,49 @@ public class MainActivity extends AppCompatActivity {
                 disconnectFromDrone();
             } else {
                 requestLocationPermission();
+            }
+            suppressBlurRevert = false;
+        });
+    }
+
+    private void initSsidEditor() {
+        lastSavedSuffix = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .getString(PREF_SSID_SUFFIX, "");
+        if (lastSavedSuffix == null) {
+            lastSavedSuffix = "";
+        }
+
+        ssidPrefixTextView.setText(SSID_PREFIX);
+        ssidSuffixEditText.setFilters(new InputFilter[]{
+                new InputFilter.LengthFilter(SSID_SUFFIX_LENGTH)
+        });
+        ssidSuffixEditText.setText(lastSavedSuffix.toUpperCase());
+        ssidSuffixEditText.setSelection(ssidSuffixEditText.getText().length());
+
+        ssidSuffixEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                String suffix = editable.toString().toUpperCase();
+                suffix = suffix.replaceAll("[^A-Z0-9]", "");
+                if (suffix.length() > SSID_SUFFIX_LENGTH) {
+                    suffix = suffix.substring(0, SSID_SUFFIX_LENGTH);
+                }
+
+                if (!suffix.equals(editable.toString())) {
+                    ssidSuffixEditText.removeTextChangedListener(this);
+                    ssidSuffixEditText.setText(suffix);
+                    ssidSuffixEditText.setSelection(suffix.length());
+                    ssidSuffixEditText.addTextChangedListener(this);
+                }
+
             }
         });
     }
@@ -100,15 +178,28 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void connectToDrone() {
+        if (!isSsidValid()) {
+            Toast.makeText(this, "Inserisci un seriale alfanumerico di 5 caratteri", Toast.LENGTH_LONG).show();
+            return;
+        }
+
         runOnUiThread(() -> {
             statusTextView.setText("Connessione in corso...");
             statusTextView.setBackgroundColor(Color.parseColor("#FFA500")); // Arancione
+            setSsidEditable(false);
         });
 
         final String networkPassword = "12345678";
+        final String suffix = ssidSuffixEditText.getText().toString().toUpperCase();
+        lastSavedSuffix = suffix;
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .putString(PREF_SSID_SUFFIX, lastSavedSuffix)
+                .apply();
+        final String targetSsid = SSID_PREFIX + suffix;
 
         WifiNetworkSpecifier specifier = new WifiNetworkSpecifier.Builder()
-                .setSsid(TARGET_SSID)
+                .setSsid(targetSsid)
                 .setWpa2Passphrase(networkPassword)
                 .build();
 
@@ -130,6 +221,7 @@ public class MainActivity extends AppCompatActivity {
                     statusTextView.setBackgroundColor(Color.parseColor("#4CAF50")); // Green
                     updateButtonState();
                     connectButton.setEnabled(true);
+                    setSsidEditable(false);
                 });
             }
 
@@ -144,6 +236,7 @@ public class MainActivity extends AppCompatActivity {
                         statusTextView.setBackgroundColor(Color.parseColor("#F44336")); // Red
                         updateButtonState();
                         connectButton.setEnabled(true); // Riattiva il pulsante
+                        setSsidEditable(true);
                     });
                 }
             }
@@ -158,6 +251,7 @@ public class MainActivity extends AppCompatActivity {
                     statusTextView.setBackgroundColor(Color.parseColor("#F44336")); // Red
                     updateButtonState();
                     connectButton.setEnabled(true); // Riattiva il pulsante
+                    setSsidEditable(true);
                 });
             }
         };
@@ -183,6 +277,7 @@ public class MainActivity extends AppCompatActivity {
             statusTextView.setBackgroundColor(Color.parseColor("#F44336")); // Red
             updateButtonState();
             connectButton.setEnabled(true); // Riattiva il pulsante
+            setSsidEditable(true);
         });
         Log.d(TAG, "Disconnessione manuale completata.");
     }
@@ -193,6 +288,27 @@ public class MainActivity extends AppCompatActivity {
         } else {
             connectButton.setText("Connetti a Kiber");
         }
+    }
+
+    private boolean isSsidValid() {
+        String suffix = ssidSuffixEditText.getText().toString().toUpperCase();
+        if (suffix.length() != SSID_SUFFIX_LENGTH) {
+            return false;
+        }
+        return suffix.matches("^[A-Z0-9]{" + SSID_SUFFIX_LENGTH + "}$");
+    }
+
+    private void setSsidEditable(boolean editable) {
+        if (!editable) {
+            ssidSuffixEditText.clearFocus();
+        }
+        ssidSuffixEditText.setEnabled(editable);
+        ssidSuffixEditText.setFocusable(editable);
+        ssidSuffixEditText.setFocusableInTouchMode(editable);
+        ssidSuffixEditText.setTextColor(editable ? Color.BLACK : Color.GRAY);
+        ssidSuffixEditText.setAlpha(editable ? 1.0f : 0.6f);
+        ssidPrefixTextView.setTextColor(editable ? Color.BLACK : Color.GRAY);
+        ssidPrefixTextView.setAlpha(editable ? 1.0f : 0.6f);
     }
 
     @Override
