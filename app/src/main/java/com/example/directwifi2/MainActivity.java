@@ -2,6 +2,7 @@ package com.example.directwifi2;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
@@ -12,6 +13,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSpecifier;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
@@ -22,6 +24,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -90,8 +93,12 @@ public class MainActivity extends AppCompatActivity {
 
         connectButton.setOnClickListener(v -> {
             if (isConnected) {
-                disconnectFromDrone();
+                disconnectFromKiberscopeWifi();
             } else {
+                if (!isWifiEnabled()) {
+                    showEnableWifiDialog();
+                    return;
+                }
                 requestLocationPermission();
             }
             suppressBlurRevert = false;
@@ -161,7 +168,7 @@ public class MainActivity extends AppCompatActivity {
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
         } else {
-            connectToDrone();
+            connectToKiberscopeWifi();
         }
     }
 
@@ -170,14 +177,19 @@ public class MainActivity extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                connectToDrone();
+                connectToKiberscopeWifi();
             } else {
                 Toast.makeText(this, "Permesso di localizzazione necessario per trovare reti Wi-Fi", Toast.LENGTH_LONG).show();
             }
         }
     }
 
-    private void connectToDrone() {
+    private void connectToKiberscopeWifi() {
+        if (!isWifiEnabled()) {
+            showEnableWifiDialog();
+            return;
+        }
+
         if (!isSsidValid()) {
             Toast.makeText(this, "Inserisci un seriale alfanumerico di 5 caratteri", Toast.LENGTH_LONG).show();
             return;
@@ -223,6 +235,8 @@ public class MainActivity extends AppCompatActivity {
                     connectButton.setEnabled(true);
                     setSsidEditable(false);
                 });
+                AppForegroundService.start(getApplicationContext(),
+                        getString(R.string.foreground_service_text_connected));
             }
 
             @Override
@@ -238,6 +252,7 @@ public class MainActivity extends AppCompatActivity {
                         connectButton.setEnabled(true); // Riattiva il pulsante
                         setSsidEditable(true);
                     });
+                    AppForegroundService.stop(getApplicationContext());
                 }
             }
 
@@ -253,13 +268,14 @@ public class MainActivity extends AppCompatActivity {
                     connectButton.setEnabled(true); // Riattiva il pulsante
                     setSsidEditable(true);
                 });
+                AppForegroundService.stop(getApplicationContext());
             }
         };
 
         connectivityManager.requestNetwork(request, networkCallback);
     }
 
-    private void disconnectFromDrone() {
+    private void disconnectFromKiberscopeWifi() {
         if (networkCallback != null) {
             try {
                 connectivityManager.unregisterNetworkCallback(networkCallback);
@@ -272,6 +288,7 @@ public class MainActivity extends AppCompatActivity {
         connectivityManager.bindProcessToNetwork(null);
 
         isConnected = false;
+        AppForegroundService.stop(getApplicationContext());
         runOnUiThread(() -> {
             statusTextView.setText("Disconnesso");
             statusTextView.setBackgroundColor(Color.parseColor("#F44336")); // Red
@@ -286,7 +303,7 @@ public class MainActivity extends AppCompatActivity {
         if (isConnected) {
             connectButton.setText("Disconnetti");
         } else {
-            connectButton.setText("Connetti a Kiber");
+            connectButton.setText(R.string.connect_kiberscope_wifi);
         }
     }
 
@@ -311,11 +328,33 @@ public class MainActivity extends AppCompatActivity {
         ssidPrefixTextView.setAlpha(editable ? 1.0f : 0.6f);
     }
 
+    private boolean isWifiEnabled() {
+        return wifiManager != null && wifiManager.isWifiEnabled();
+    }
+
+    private void showEnableWifiDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.wifi_disabled_dialog_title)
+                .setMessage(R.string.wifi_disabled_dialog_message)
+                .setCancelable(false)
+                .setPositiveButton(R.string.wifi_disabled_dialog_enable_button, (dialog, which) -> {
+                    Intent intent;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        intent = new Intent(Settings.Panel.ACTION_WIFI);
+                    } else {
+                        intent = new Intent(Settings.ACTION_WIFI_SETTINGS);
+                    }
+                    startActivity(intent);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
         if (isConnected) {
-            disconnectFromDrone();
+            disconnectFromKiberscopeWifi();
         }
     }
 }
