@@ -47,13 +47,6 @@
         android:layout_height="wrap_content"
         android:text="@string/connect_kiberscope_wifi" />
 
-    <CheckBox
-        android:id="@+id/autoConnectCheckBox"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="@string/autoconnect_label" />
-
     <TextView
         android:id="@+id/statusTextView"
         android:layout_width="match_parent"

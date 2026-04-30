@@ -2,6 +2,7 @@ package com.example.directwifi2;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -45,17 +46,32 @@ import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import android.media.AudioAttributes;
 
 public class KiberWifiServiceManager extends Service {
+    public enum KiberStatus {
+        IDLING,
+        SCANNING,
+        MONITORING,
+        CONNECTED,
+        DISCONNECTED,
+        ERROR
+    }
+
+    public interface KiberEventListener {
+        void onKiberEvent(@NonNull KiberStatus status, @NonNull String message);
+    }
 
     public static final String ACTION_START = "com.example.directwifi2.action.START";
     public static final String ACTION_STOP = "com.example.directwifi2.action.STOP";
+    public static final String ACTION_ENABLE_CONNECT = "com.example.directwifi2.action.ENABLE_CONNECT";
+    public static final String ACTION_DISABLE_CONNECT = "com.example.directwifi2.action.DISABLE_CONNECT";
     private static final String EXTRA_CONTENT_TEXT = "extra_content_text";
     private static final String EXTRA_CONNECTED = "extra_connected";
 
     private static final String TAG = "KiberWifiServiceManager";
     private static final String WAKELOCK_TAG = "DirectWifi2:BleScanWakeLock";
-    private static final String CHANNEL_ID = "directwifi2_keepalive_channel_v2";
+    private static final String CHANNEL_ID = "directwifi2_keepalive_channel_v3";
     private static final int NOTIFICATION_ID = 1001;
     
     private static final String SSID_PREFIX = "KIBERSCOPE-";
@@ -65,12 +81,18 @@ public class KiberWifiServiceManager extends Service {
     private static final String PREFS_NAME = "directwifi2_prefs";
     private static final String PREF_SSID_SUFFIX = "pref_ssid_suffix";
     private static final String PREF_AUTOCONNECT_ENABLED = "pref_autoconnect_enabled";
+    private static final String PREF_CONNECT_ENABLED = "pref_connect_enabled";
     private static final String PREF_LEARNED_DEVICE_ADDRESSES = "pref_learned_device_addresses";
     private static final String PREF_CONNECTION_REFUSED_PENDING = "pref_connection_refused_pending";
     private static final String KIBERSCOPE_PASSPHRASE = "12345678";
     
-    private static final long AUTOCONNECT_RETRY_DELAY_MS = 2_000L;
-    private static final long BLE_SCAN_WINDOW_MS = 30_000L;
+    private static final long AUTOCONNECT_RETRY_DELAY_MS = 3_000L;
+    private static final long BLE_SCAN_WINDOW_MS = 5_000L;
+    private static final long DEVICE_PRESENT_TTL_MS = 10_000L;
+    private static final long MIN_SCAN_START_INTERVAL_MS = 4_000L;
+    private static volatile KiberStatus currentStatus = KiberStatus.IDLING;
+    private static volatile KiberEventListener eventListener;
+    private static volatile boolean targetPresentGlobal = false;
 
     private ConnectivityManager connectivityManager;
     private WifiManager wifiManager;
@@ -83,12 +105,18 @@ public class KiberWifiServiceManager extends Service {
     private boolean connectedState = false;
     private boolean connectionInProgress = false;
     private boolean isBleScanning = false;
+    private boolean targetDevicePresent = false;
+    private boolean scanUsedMacFilters = false;
+    private boolean scanMatchedTargetName = false;
     private int scanResultLogBudget = 0;
     private PowerManager.WakeLock bleScanWakeLock;
     private Runnable bleScanTimeoutRunnable;
     
     private ConnectivityManager.NetworkCallback networkCallback;
     private long lastTargetSeenAtMs = 0L;
+    private long lastScanStartAttemptAtMs = 0L;
+    private String lastNotificationText = null;
+    private boolean lastNotificationConnected = false;
     private final Runnable retryRunnable = this::attemptAutoConnectIfEnabled;
 
     public static void start(Context context, String contentText, boolean connected) {
@@ -103,10 +131,78 @@ public class KiberWifiServiceManager extends Service {
         start(context, context.getString(R.string.foreground_service_text_autoconnect_waiting), false);
     }
 
+    public static void start(@NonNull Activity activity, @NonNull String deviceName, boolean autoConnect) {
+        String suffix = extractSuffixFromDeviceName(deviceName);
+        if (suffix == null) {
+            throw new IllegalArgumentException("deviceName must be in form KIBERSCOPE-XXXXX");
+        }
+        SharedPreferences prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit()
+                .putString(PREF_SSID_SUFFIX, suffix)
+                .putBoolean(PREF_AUTOCONNECT_ENABLED, autoConnect)
+                .apply();
+        start(activity.getApplicationContext(), activity.getString(R.string.foreground_service_text_autoconnect_waiting), false);
+    }
+
     public static void stop(Context context) {
         Intent intent = new Intent(context, KiberWifiServiceManager.class);
         intent.setAction(ACTION_STOP);
         context.startService(intent);
+    }
+
+    public static void enableConnect(@NonNull Context context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(PREF_CONNECT_ENABLED, true)
+                .apply();
+        Intent intent = new Intent(context, KiberWifiServiceManager.class);
+        intent.setAction(ACTION_ENABLE_CONNECT);
+        ContextCompat.startForegroundService(context, intent);
+    }
+
+    public static void disableConnect(@NonNull Context context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(PREF_CONNECT_ENABLED, false)
+                .apply();
+        Intent intent = new Intent(context, KiberWifiServiceManager.class);
+        intent.setAction(ACTION_DISABLE_CONNECT);
+        context.startService(intent);
+    }
+
+    public static void clearLearnedBleFilters(@NonNull Context context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(PREF_LEARNED_DEVICE_ADDRESSES, "")
+                .apply();
+    }
+
+    public static void setListener(@Nullable KiberEventListener listener) {
+        eventListener = listener;
+    }
+
+    @NonNull
+    public static KiberStatus getStatus() {
+        return currentStatus;
+    }
+
+    public static boolean isTargetPresent() {
+        return targetPresentGlobal;
+    }
+
+    private static String extractSuffixFromDeviceName(String deviceName) {
+        if (deviceName == null) {
+            return null;
+        }
+        String normalized = deviceName.toUpperCase(Locale.ROOT);
+        if (!normalized.startsWith(SSID_PREFIX)) {
+            return null;
+        }
+        String suffix = normalized.substring(SSID_PREFIX.length()).trim();
+        if (suffix.matches("^[A-Z0-9]{" + SSID_SUFFIX_LENGTH + "}$")) {
+            return suffix;
+        }
+        return null;
     }
 
     private final BroadcastReceiver wifiReceiver = new BroadcastReceiver() {
@@ -127,6 +223,7 @@ public class KiberWifiServiceManager extends Service {
                     }
                     connectedState = false;
                     updateNotification(getString(R.string.foreground_service_text_wifi_disabled), false);
+                    emitStatus(KiberStatus.IDLING, "KIBER_WIFI_OFF");
                 }
             }
         }
@@ -152,7 +249,8 @@ public class KiberWifiServiceManager extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "Service onStartCommand action=" + (intent != null ? intent.getAction() : "null")
                 + " build=" + getAppVersionTag());
-        if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+        String action = intent != null ? intent.getAction() : null;
+        if (ACTION_STOP.equals(action)) {
             if (connectedState) {
                 BeepHelper.playBeep(this, false);
             }
@@ -161,6 +259,15 @@ public class KiberWifiServiceManager extends Service {
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
             return START_NOT_STICKY;
+        }
+        if (ACTION_DISABLE_CONNECT.equals(action)) {
+            handleDisableConnectAction();
+        }
+        if (ACTION_ENABLE_CONNECT.equals(action)) {
+            getPrefs().edit().putBoolean(PREF_CONNECT_ENABLED, true).apply();
+            // Force a fresh immediate cycle to minimize latency after manual Connect.
+            cancelRetry();
+            stopBleScan();
         }
 
         String contentText = getString(R.string.foreground_service_text_default);
@@ -177,7 +284,7 @@ public class KiberWifiServiceManager extends Service {
         }
 
         startForeground(NOTIFICATION_ID, buildNotification(contentText, connectedState));
-        if (isAutoConnectEnabled() && !connectedState) {
+        if (!connectedState) {
             cancelRetry();
             attemptAutoConnectIfEnabled();
         }
@@ -215,11 +322,19 @@ public class KiberWifiServiceManager extends Service {
                 .setSmallIcon(connected ? R.drawable.ic_notification_k_wifi : R.drawable.ic_notification_k)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setSilent(true)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .build();
     }
 
     private void updateNotification(String contentText, boolean connected) {
+        emitStatus(connected ? KiberStatus.CONNECTED : KiberStatus.IDLING, contentText);
+        if (contentText != null
+                && contentText.equals(lastNotificationText)
+                && connected == lastNotificationConnected) {
+            return;
+        }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
             return;
@@ -227,6 +342,8 @@ public class KiberWifiServiceManager extends Service {
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) {
             manager.notify(NOTIFICATION_ID, buildNotification(contentText, connected));
+            lastNotificationText = contentText;
+            lastNotificationConnected = connected;
         }
     }
 
@@ -234,9 +351,12 @@ public class KiberWifiServiceManager extends Service {
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 getString(R.string.foreground_service_channel_name),
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_LOW
         );
         channel.setDescription(getString(R.string.foreground_service_channel_description));
+        channel.setSound(null, (AudioAttributes) null);
+        channel.enableVibration(false);
+        channel.enableLights(false);
 
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) {
@@ -270,6 +390,10 @@ public class KiberWifiServiceManager extends Service {
         return getPrefs().getBoolean(PREF_AUTOCONNECT_ENABLED, false);
     }
 
+    private boolean isConnectEnabled() {
+        return getPrefs().getBoolean(PREF_CONNECT_ENABLED, false);
+    }
+
     private boolean hasRequiredPermissions() {
         boolean location = hasLocationPermission();
         boolean bluetooth = true;
@@ -287,7 +411,14 @@ public class KiberWifiServiceManager extends Service {
         if (!fine && !coarse) {
             return false;
         }
-        // Background location is required on Android 10+ for reliable background BLE scanning on this app flow.
+        // Manual connect flow can run with foreground location; passive background reliability still
+        // expects background location permission.
+        if (isConnectEnabled()) {
+            return true;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return true;
+        }
         return ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
@@ -338,19 +469,14 @@ public class KiberWifiServiceManager extends Service {
     }
 
     private void attemptAutoConnectIfEnabled() {
-        if (!isAutoConnectEnabled() || connectedState || connectionInProgress) {
+        if (connectedState || connectionInProgress) {
             return;
         }
         Log.d(TAG, "Service autoconnect attempt started");
-        
-        if (MainActivity.requestServiceDrivenAutoconnect()) {
-            cancelRetry();
-            updateNotification(getString(R.string.foreground_service_text_connecting_via_app), false);
-            return;
-        }
-        
+
         if (isWifiDisabled()) {
             updateNotification(getString(R.string.foreground_service_text_wifi_disabled), false);
+            emitStatus(KiberStatus.IDLING, "KIBER_WIFI_OFF");
             scheduleRetry();
             return;
         }
@@ -365,8 +491,21 @@ public class KiberWifiServiceManager extends Service {
             updateNotification(getString(R.string.foreground_service_text_waiting_suffix), false);
             return;
         }
+
+        if (isConnectEnabled() && isTargetDevicePresentRecently()) {
+            Log.d(TAG, "Service immediate connect: target already marked present");
+            requestNetworkInBackground(getTargetSsidOrNull());
+            return;
+        }
         
-        updateNotification(getString(R.string.foreground_service_text_searching), false);
+        boolean shouldAnnounceSearching = !isTargetDevicePresentRecently();
+        if (shouldAnnounceSearching) {
+            updateNotification(getString(R.string.foreground_service_text_searching), false);
+            emitStatus(KiberStatus.SCANNING, "KIBER_SCANNING");
+        } else {
+            updateNotification(getString(R.string.foreground_service_text_autoconnect_waiting), false);
+            emitStatus(KiberStatus.MONITORING, "KIBER_MONITORING");
+        }
         startBleScan();
     }
 
@@ -375,10 +514,23 @@ public class KiberWifiServiceManager extends Service {
         if (isBleScanning || connectedState || connectionInProgress) {
             return;
         }
+        long now = SystemClock.elapsedRealtime();
+        long sinceLastStart = now - lastScanStartAttemptAtMs;
+        if (sinceLastStart < MIN_SCAN_START_INTERVAL_MS) {
+            long waitMs = MIN_SCAN_START_INTERVAL_MS - sinceLastStart;
+            Log.w(TAG, "Service scan start throttled to avoid too-frequent registration, waitMs=" + waitMs);
+            if (!handler.hasCallbacks(retryRunnable)) {
+                handler.postDelayed(retryRunnable, waitMs);
+            }
+            return;
+        }
+        lastScanStartAttemptAtMs = now;
         clearBleScanTimeout();
+        scanMatchedTargetName = false;
         
         if (bluetoothAdapter == null) {
             Log.w(TAG, "Service: Bluetooth adapter not available");
+            emitStatus(KiberStatus.IDLING, "KIBER_BT_OFF");
             scheduleRetry();
             return;
         }
@@ -386,6 +538,7 @@ public class KiberWifiServiceManager extends Service {
         bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
         if (bluetoothLeScanner == null) {
             Log.w(TAG, "Service: Cannot get BLE scanner, adapterState=" + bluetoothAdapter.getState());
+            emitStatus(KiberStatus.IDLING, "KIBER_BT_OFF");
             scheduleRetry();
             return;
         }
@@ -414,24 +567,30 @@ public class KiberWifiServiceManager extends Service {
                         || isTargetBleNameMatch(targetBleName, recordName);
                 boolean macMatched = hasAnyLearnedDeviceAddress(result);
                 boolean hasMacGuard = !getLearnedDeviceAddresses().isEmpty();
-                boolean matched = nameMatched && (!hasMacGuard || macMatched);
+                // Be robust to rotating/random BLE addresses: name match is sufficient,
+                // learned MAC is a fast path/filter hint, not a hard blocker.
+                boolean matched = nameMatched;
                 if (matched) {
+                    scanMatchedTargetName = true;
                     Log.d(TAG, "Service found target BLE device: deviceName=" + deviceName + ", recordName=" + recordName);
                     cacheDeviceAddressFromResult(result, "Service");
                     lastTargetSeenAtMs = SystemClock.elapsedRealtime();
+                    targetDevicePresent = true;
+                    targetPresentGlobal = true;
+                    emitStatus(KiberStatus.IDLING, "KIBER_TARGET_PRESENT");
                     stopBleScan();
-                    
-                    boolean delegated = MainActivity.requestServiceDrivenAutoconnect();
-                    if (delegated) {
-                        updateNotification(getString(R.string.foreground_service_text_connecting_via_app), false);
-                    } else {
+                    if (isConnectEnabled() || isAutoConnectEnabled()) {
                         requestNetworkInBackground(getTargetSsidOrNull());
+                    } else {
+                        updateNotification(getString(R.string.foreground_service_text_autoconnect_waiting), false);
+                        scheduleRetry();
                     }
                 } else if (scanResultLogBudget > 0) {
                     scanResultLogBudget--;
                     Log.d(TAG, "Service BLE non-match: deviceName=" + deviceName
                             + ", recordName=" + recordName
                             + ", nameMatched=" + nameMatched
+                            + ", hasMacGuard=" + hasMacGuard
                             + ", macMatched=" + macMatched
                             + ", rssi=" + result.getRssi());
                 }
@@ -440,6 +599,7 @@ public class KiberWifiServiceManager extends Service {
             @Override
             public void onScanFailed(int errorCode) {
                 Log.e(TAG, "Service BLE scan failed: " + errorCode);
+                emitStatus(KiberStatus.ERROR, "BLE_SCAN_FAILED_" + errorCode);
                 isBleScanning = false;
                 releaseBleScanWakeLock();
                 scheduleRetry();
@@ -450,6 +610,7 @@ public class KiberWifiServiceManager extends Service {
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .build();
         List<ScanFilter> scanFilters = buildBleScanFilters();
+        scanUsedMacFilters = scanFilters != null && !scanFilters.isEmpty();
         Set<String> learnedMac = getLearnedDeviceAddresses();
         Log.d(TAG, "Service BLE scan config: learnedMacCount=" + learnedMac.size()
                 + ", learnedMac=" + learnedMac);
@@ -474,6 +635,15 @@ public class KiberWifiServiceManager extends Service {
             if (isBleScanning) {
                 Log.d(TAG, "Service BLE scan timeout");
                 stopBleScan();
+                targetDevicePresent = isTargetDevicePresentRecently();
+                targetPresentGlobal = targetDevicePresent;
+                if (!targetDevicePresent) {
+                    emitStatus(KiberStatus.IDLING, "KIBER_TARGET_ABSENT");
+                }
+                if (scanUsedMacFilters && !scanMatchedTargetName) {
+                    Log.w(TAG, "Service scan timeout with stale MAC filters: clearing learned filters and retrying unfiltered");
+                    clearLearnedDeviceAddresses();
+                }
                 scheduleRetry();
             }
         };
@@ -547,12 +717,20 @@ public class KiberWifiServiceManager extends Service {
         return learned.contains(address.toUpperCase(Locale.ROOT));
     }
 
+    private void clearLearnedDeviceAddresses() {
+        getPrefs().edit().putString(PREF_LEARNED_DEVICE_ADDRESSES, "").apply();
+    }
+
     private boolean isTargetBleNameMatch(String expectedName, String candidateName) {
         if (expectedName == null || expectedName.isEmpty() || candidateName == null || candidateName.isEmpty()) {
             return false;
         }
         String normalizedCandidate = candidateName.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9-]", "");
-        return expectedName.equals(normalizedCandidate);
+        if (expectedName.equals(normalizedCandidate)) {
+            return true;
+        }
+        // Some stacks append noisy suffix chars; accept prefix match on expected token.
+        return normalizedCandidate.startsWith(expectedName);
     }
 
     private void cacheDeviceAddressFromResult(ScanResult result, String owner) {
@@ -656,6 +834,7 @@ public class KiberWifiServiceManager extends Service {
                 
                 Log.d(TAG, "Service network available: " + network);
                 updateNotification(getString(R.string.foreground_service_text_connected), true);
+                emitStatus(KiberStatus.CONNECTED, "KIBER_CONNECTED");
             }
 
             @Override
@@ -669,6 +848,7 @@ public class KiberWifiServiceManager extends Service {
                 Log.d(TAG, "Service network lost: " + network);
                 clearNetworkCallback();
                 updateNotification(getString(R.string.foreground_service_text_autoconnect_waiting), false);
+                emitStatus(KiberStatus.DISCONNECTED, "KIBER_DISCONNECTED");
                 scheduleRetry();
             }
 
@@ -679,6 +859,8 @@ public class KiberWifiServiceManager extends Service {
                 connectionInProgress = false;
                 Log.d(TAG, "Service network unavailable");
                 getPrefs().edit().putBoolean(PREF_CONNECTION_REFUSED_PENDING, true).apply();
+                targetPresentGlobal = false;
+                emitStatus(KiberStatus.ERROR, "KIBER_CONNECTION_REFUSED");
                 clearNetworkCallback();
                 disableAutoConnectAfterFailure();
             }
@@ -688,18 +870,19 @@ public class KiberWifiServiceManager extends Service {
     }
 
     private void disableAutoConnectAfterFailure() {
-        getPrefs().edit().putBoolean(PREF_AUTOCONNECT_ENABLED, false).apply();
+        getPrefs().edit()
+                .putBoolean(PREF_AUTOCONNECT_ENABLED, false)
+                .putBoolean(PREF_CONNECT_ENABLED, false)
+                .apply();
         cancelRetry();
         stopBleScan();
         releaseBleScanWakeLock();
-        handler.post(() -> {
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
-        });
+        updateNotification(getString(R.string.foreground_service_text_connection_refused), false);
+        scheduleRetry();
     }
 
     private void scheduleRetry() {
-        if (!isAutoConnectEnabled() || connectedState || connectionInProgress) {
+        if (connectedState || connectionInProgress) {
             return;
         }
         if (handler.hasCallbacks(retryRunnable)) {
@@ -725,7 +908,64 @@ public class KiberWifiServiceManager extends Service {
         }
         networkCallback = null;
         if (!connectedState) {
-            lastTargetSeenAtMs = 0L;
+            if (!isTargetDevicePresentRecently()) {
+                lastTargetSeenAtMs = 0L;
+                targetDevicePresent = false;
+                targetPresentGlobal = false;
+            }
+        }
+    }
+
+    private void handleDisableConnectAction() {
+        clearNetworkCallback();
+        connectionInProgress = false;
+        if (connectedState) {
+            BeepHelper.playBeep(this, false);
+        }
+        connectedState = false;
+        disconnectFromTargetApIfNeeded();
+        updateNotification(getString(R.string.foreground_service_text_autoconnect_waiting), false);
+        emitStatus(KiberStatus.DISCONNECTED, "KIBER_DISCONNECTED");
+        attemptAutoConnectIfEnabled();
+    }
+
+    private boolean isTargetDevicePresentRecently() {
+        if (lastTargetSeenAtMs <= 0L) {
+            return false;
+        }
+        return (SystemClock.elapsedRealtime() - lastTargetSeenAtMs) <= DEVICE_PRESENT_TTL_MS;
+    }
+
+    private void disconnectFromTargetApIfNeeded() {
+        try {
+            if (wifiManager == null || wifiManager.getConnectionInfo() == null) {
+                return;
+            }
+            @SuppressLint("MissingPermission")
+            String currentSsidRaw = wifiManager.getConnectionInfo().getSSID();
+            if (currentSsidRaw == null) {
+                return;
+            }
+            String currentSsid = currentSsidRaw.replace("\"", "");
+            if (!currentSsid.startsWith(SSID_PREFIX)) {
+                return;
+            }
+            wifiManager.disconnect();
+        } catch (Exception e) {
+            Log.w(TAG, "Service failed to disconnect target AP", e);
+        }
+    }
+
+    private void emitStatus(@NonNull KiberStatus status, @NonNull String message) {
+        currentStatus = status;
+        KiberEventListener listener = eventListener;
+        if (listener != null) {
+            try {
+                listener.onKiberEvent(status, message);
+            } catch (Exception e) {
+                Log.w(TAG, "Listener callback failed", e);
+            }
         }
     }
 }
+
