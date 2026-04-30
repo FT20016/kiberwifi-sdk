@@ -22,7 +22,7 @@
             android:id="@+id/ssidPrefixTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="KIBERSCOPE-"
+            android:text="@string/ssid_prefix"
             android:textSize="16sp" />
 
         <EditText
@@ -34,7 +34,8 @@
             android:inputType="textCapCharacters"
             android:maxLines="1"
             android:singleLine="true"
-            android:hint="XXXXX"
+            android:hint="@string/ssid_suffix_hint"
+            android:importantForAutofill="no"
             android:background="@drawable/serial_edit_bg"
             android:paddingHorizontal="12dp"
             android:paddingVertical="6dp" />
@@ -46,6 +47,13 @@
         android:layout_height="wrap_content"
         android:text="@string/connect_kiberscope_wifi" />
 
+    <CheckBox
+        android:id="@+id/autoConnectCheckBox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/autoconnect_label" />
+
     <TextView
         android:id="@+id/statusTextView"
         android:layout_width="match_parent"
@@ -53,7 +61,7 @@
         android:layout_marginTop="20dp"
         android:gravity="center"
         android:textSize="18sp"
-        android:text="Disconnesso"
+        android:text="@string/status_disconnected"
         android:padding="10dp"
         android:background="#F44336" />
 

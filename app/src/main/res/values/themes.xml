@@ -1,8 +1,7 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <!-- Base application theme. -->
     <style name="Theme.DirectWifi2" parent="Theme.AppCompat.Light.DarkActionBar">
         <!-- Customize your light theme here. -->
-        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
     </style>
 </resources>
