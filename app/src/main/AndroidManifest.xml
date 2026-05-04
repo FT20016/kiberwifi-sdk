@@ -44,6 +44,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".KiberWifiServiceManager$KiberPermissionProxyActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DirectWifi2" />
+        <activity
+            android:name=".KiberWifiServiceManager$KiberConnectionRefusedDialogActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DirectWifi2" />
+        <activity
+            android:name=".KiberWifiServiceManager$KiberRadioStateDialogActivity"
+            android:exported="false"
+            android:theme="@style/Theme.DirectWifi2" />
         <service
             android:name=".KiberWifiServiceManager"
             android:enabled="true"

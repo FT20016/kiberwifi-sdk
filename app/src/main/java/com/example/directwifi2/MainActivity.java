@@ -1,65 +1,46 @@
 package com.example.directwifi2;
 
 import android.annotation.SuppressLint;
-import android.Manifest;
-import android.content.ActivityNotFoundException;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothManager;
 import android.content.Context;
-import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.net.Uri;
-import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
 import android.util.TypedValue;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 import androidx.core.content.pm.PackageInfoCompat;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity implements KiberWifiServiceManager.KiberEventListener {
 
     private static final String TAG = "MainActivity";
-    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 2;
-    private static final int BACKGROUND_LOCATION_PERMISSION_REQUEST_CODE = 3;
-    private static final int BLE_PERMISSION_REQUEST_CODE = 4;
     
     private static final String SSID_PREFIX = "KIBERSCOPE-";
     private static final int SSID_SUFFIX_LENGTH = 5;
     
     private static final String PREFS_NAME = "directwifi2_prefs";
     private static final String PREF_SSID_SUFFIX = "pref_ssid_suffix";
-    private static final String PREF_RUNTIME_PERMISSIONS_ASKED_ONCE = "pref_runtime_permissions_asked_once";
-    private static final String PREF_CONNECTION_REFUSED_PENDING = "pref_connection_refused_pending";
     
     private static final String COLOR_DISCONNECTED = "#F44336";
     private static final String COLOR_CONNECTING = "#FFA500";
+    private static final String COLOR_CONNECTING_WIFI = "#29B6F6";
     private static final String COLOR_CONNECTED = "#4CAF50";
     
-    private static boolean isInForeground = false;
 
     private WifiManager wifiManager;
-    private BluetoothAdapter bluetoothAdapter;
     
     private TextView statusTextView;
     private TextView dualWifiStatusTextView;
@@ -81,11 +62,6 @@ public class MainActivity extends AppCompatActivity implements KiberWifiServiceM
 
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         
-        BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-        if (bluetoothManager != null) {
-            bluetoothAdapter = bluetoothManager.getAdapter();
-        }
-
         statusTextView = findViewById(R.id.statusTextView);
         dualWifiStatusTextView = findViewById(R.id.dualWifiStatusTextView);
         connectButton = findViewById(R.id.connectButton);
@@ -116,7 +92,7 @@ public class MainActivity extends AppCompatActivity implements KiberWifiServiceM
         });
 
         initSsidEditor();
-        requestNotificationPermissionIfNeeded();
+        KiberWifiServiceManager.ensurePermissions(this);
 
         updateButtonState();
         bleTargetDetected = KiberWifiServiceManager.isTargetPresent();
@@ -128,18 +104,18 @@ public class MainActivity extends AppCompatActivity implements KiberWifiServiceM
                 KiberWifiServiceManager.disableConnect(getApplicationContext());
                 return;
             }
-            requestPermissionsForConnection();
+            KiberWifiServiceManager.enableConnect(this);
         });
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        requestCorePermissionsAtStartupIfNeeded();
+        KiberWifiServiceManager.ensurePermissions(this);
         syncUiWithCurrentWifiState();
         if (isSsidValid()) {
-            KiberWifiServiceManager.start(
-                    getApplicationContext(),
+            KiberWifiServiceManager.startManaged(
+                    this,
                     isConnected ? getString(R.string.foreground_service_text_connected)
                             : getString(R.string.foreground_service_text_autoconnect_waiting),
                     isConnected
@@ -150,14 +126,13 @@ public class MainActivity extends AppCompatActivity implements KiberWifiServiceM
     @Override
     protected void onResume() {
         super.onResume();
-        isInForeground = true;
+        KiberWifiServiceManager.setHostAppInForeground(this, true);
         KiberWifiServiceManager.setListener(this);
-        maybeShowPendingConnectionRefusedDialog();
     }
 
     @Override
     protected void onPause() {
-        isInForeground = false;
+        KiberWifiServiceManager.setHostAppInForeground(this, false);
         KiberWifiServiceManager.setListener(null);
         super.onPause();
     }
@@ -173,6 +148,13 @@ public class MainActivity extends AppCompatActivity implements KiberWifiServiceM
                 refreshConnectButtonEnabled();
             } else if ("KIBER_TARGET_ABSENT".equals(message)) {
                 bleTargetDetected = false;
+                if (!isConnected && isSsidValid()) {
+                    updateStatusBadgeText(
+                            "Ricerca dispositivo " + getTargetSsidOrNull(),
+                            COLOR_CONNECTING,
+                            true
+                    );
+                }
                 refreshConnectButtonEnabled();
             } else if ("KIBER_WIFI_OFF".equals(message)) {
                 bleTargetDetected = false;
@@ -201,6 +183,10 @@ public class MainActivity extends AppCompatActivity implements KiberWifiServiceM
             } else if (status == KiberWifiServiceManager.KiberStatus.MONITORING && !isConnected) {
                 isConnectionInProgress = false;
                 updateStatusBadge(R.string.status_disconnected, COLOR_DISCONNECTED);
+                updateButtonState();
+            } else if (status == KiberWifiServiceManager.KiberStatus.CONNECTING && !isConnected) {
+                isConnectionInProgress = true;
+                updateStatusBadgeText("CONNECTING...", COLOR_CONNECTING_WIFI, false);
                 updateButtonState();
             } else if (status == KiberWifiServiceManager.KiberStatus.CONNECTED) {
                 isConnected = true;
@@ -292,8 +278,13 @@ public class MainActivity extends AppCompatActivity implements KiberWifiServiceM
 
         if (!valid) {
             // Ignore partial edits; reconfigure manager only when target code is complete.
+            bleTargetDetected = false;
+            isConnectionInProgress = false;
+            statusTextView.setVisibility(View.INVISIBLE);
+            refreshConnectButtonEnabled();
             return;
         }
+        statusTextView.setVisibility(View.VISIBLE);
 
         if (suffix.equals(lastServiceTargetSuffix)) {
             return;
@@ -328,139 +319,6 @@ public class MainActivity extends AppCompatActivity implements KiberWifiServiceM
             dualWifiStatusTextView.setTextColor(Color.parseColor(COLOR_DISCONNECTED));
         }
     }
-
-    private void requestPermissionsForConnection() {
-        List<String> permissionsToRequest = new ArrayList<>();
-        
-        if (!hasLocationPermission()) {
-            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION);
-            permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION);
-        }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN);
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT);
-            }
-        }
-
-        if (!permissionsToRequest.isEmpty()) {
-            ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), BLE_PERMISSION_REQUEST_CODE);
-            return;
-        }
-
-        KiberWifiServiceManager.enableConnect(getApplicationContext());
-    }
-
-    private void requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
-        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST_CODE);
-    }
-
-    private void requestCorePermissionsAtStartupIfNeeded() {
-        boolean alreadyAsked = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                .getBoolean(PREF_RUNTIME_PERMISSIONS_ASKED_ONCE, false);
-        if (alreadyAsked) {
-            return;
-        }
-
-        List<String> permissionsToRequest = new ArrayList<>();
-        if (!hasLocationPermission()) {
-            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION);
-            permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION);
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN);
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT);
-            }
-        }
-
-        if (permissionsToRequest.isEmpty()) {
-            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                    .edit()
-                    .putBoolean(PREF_RUNTIME_PERMISSIONS_ASKED_ONCE, true)
-                    .apply();
-            return;
-        }
-
-        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                .edit()
-                .putBoolean(PREF_RUNTIME_PERMISSIONS_ASKED_ONCE, true)
-                .apply();
-        ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), BLE_PERMISSION_REQUEST_CODE);
-    }
-
-    private void requestBackgroundLocationPermissionIfNeeded() {
-        if (hasBackgroundLocationPermission()) return;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            showBackgroundLocationSettingsDialog();
-            return;
-        }
-        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, BACKGROUND_LOCATION_PERMISSION_REQUEST_CODE);
-    }
-
-    private boolean hasBackgroundLocationPermission() {
-        // Background location is required on Android 10+ for reliable background BLE scanning on this app flow.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true;
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void showBackgroundLocationSettingsDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.background_location_dialog_title)
-                .setMessage(R.string.background_location_dialog_message)
-                .setPositiveButton(R.string.background_location_dialog_open_settings, (dialog, which) -> {
-                    Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                    intent.setData(Uri.fromParts("package", getPackageName(), null));
-                    startActivity(intent);
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
-    }
-
-    private boolean hasLocationPermission() {
-        boolean hasFineLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-        boolean hasCoarseLocation = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-        return hasFineLocation || hasCoarseLocation;
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        
-        if (requestCode == BACKGROUND_LOCATION_PERMISSION_REQUEST_CODE) {
-            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
-            if (!granted) {
-                Toast.makeText(this, R.string.background_location_permission_required, Toast.LENGTH_LONG).show();
-            }
-            return;
-        }
-
-        if (requestCode != BLE_PERMISSION_REQUEST_CODE) return;
-
-        boolean allGranted = true;
-        for (int grantResult : grantResults) {
-            if (grantResult != PackageManager.PERMISSION_GRANTED) {
-                allGranted = false;
-                break;
-            }
-        }
-
-        if (!allGranted) {
-            Toast.makeText(this, "Permessi necessari per il funzionamento", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        requestBackgroundLocationPermissionIfNeeded();
-        KiberWifiServiceManager.enableConnect(getApplicationContext());
-    }
-
 
     private void updateButtonState() {
         connectButton.setText(isConnected ? R.string.disconnect_kiberscope_wifi : R.string.connect_kiberscope_wifi);
@@ -517,6 +375,7 @@ public class MainActivity extends AppCompatActivity implements KiberWifiServiceM
     }
 
     private void updateStatusBadge(int textRes, String backgroundColor) {
+        statusTextView.setVisibility(View.VISIBLE);
         statusTextView.setText(textRes);
         float statusSizeSp = (textRes == R.string.status_autoconnect_searching) ? 14f : 18f;
         statusTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, statusSizeSp);
@@ -524,34 +383,10 @@ public class MainActivity extends AppCompatActivity implements KiberWifiServiceM
     }
 
     private void updateStatusBadgeText(String text, String backgroundColor, boolean compact) {
+        statusTextView.setVisibility(View.VISIBLE);
         statusTextView.setText(text);
         statusTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, compact ? 14f : 18f);
         statusTextView.setBackgroundColor(Color.parseColor(backgroundColor));
-    }
-
-    private void setConnectionRefusedPending(boolean pending) {
-        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                .edit()
-                .putBoolean(PREF_CONNECTION_REFUSED_PENDING, pending)
-                .apply();
-    }
-
-    private void maybeShowPendingConnectionRefusedDialog() {
-        boolean pending = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-                .getBoolean(PREF_CONNECTION_REFUSED_PENDING, false);
-        if (!pending) {
-            return;
-        }
-        setConnectionRefusedPending(false);
-        showConnectionRefusedDialog();
-    }
-
-    private void showConnectionRefusedDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.connection_refused_notification_title)
-                .setMessage(R.string.connection_refused_notification_body)
-                .setPositiveButton(android.R.string.ok, null)
-                .show();
     }
 
     private boolean isSsidValid() {

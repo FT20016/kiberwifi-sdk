@@ -25,18 +25,25 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
+import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSpecifier;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.util.Log;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.pm.PackageInfoCompat;
@@ -47,12 +54,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
 
 public class KiberWifiServiceManager extends Service {
     public enum KiberStatus {
         IDLING,
         SCANNING,
         MONITORING,
+        CONNECTING,
         CONNECTED,
         DISCONNECTED,
         ERROR
@@ -68,6 +78,13 @@ public class KiberWifiServiceManager extends Service {
     public static final String ACTION_DISABLE_CONNECT = "com.example.directwifi2.action.DISABLE_CONNECT";
     private static final String EXTRA_CONTENT_TEXT = "extra_content_text";
     private static final String EXTRA_CONNECTED = "extra_connected";
+    private static final String EXTRA_RADIO_TYPE = "extra_radio_type";
+    static final String EXTRA_PENDING_ACTION = "extra_pending_action";
+    static final String PENDING_ACTION_NONE = "none";
+    static final String PENDING_ACTION_START = "start";
+    static final String PENDING_ACTION_ENABLE_CONNECT = "enable_connect";
+    private static final String RADIO_TYPE_WIFI = "wifi";
+    private static final String RADIO_TYPE_BT = "bt";
 
     private static final String TAG = "KiberWifiServiceManager";
     private static final String WAKELOCK_TAG = "DirectWifi2:BleScanWakeLock";
@@ -93,6 +110,9 @@ public class KiberWifiServiceManager extends Service {
     private static volatile KiberStatus currentStatus = KiberStatus.IDLING;
     private static volatile KiberEventListener eventListener;
     private static volatile boolean targetPresentGlobal = false;
+    private static volatile boolean hostAppInForeground = false;
+    private static volatile long lastRadioDialogAtMs = 0L;
+    private static volatile String lastRadioDialogType = "";
 
     private ConnectivityManager connectivityManager;
     private WifiManager wifiManager;
@@ -131,6 +151,13 @@ public class KiberWifiServiceManager extends Service {
         start(context, context.getString(R.string.foreground_service_text_autoconnect_waiting), false);
     }
 
+    public static void ensurePermissions(@NonNull Activity activity) {
+        if (hasRuntimePermissions(activity, true) && hasBatteryOptimizationExemption(activity)) {
+            return;
+        }
+        launchPermissionProxy(activity, PENDING_ACTION_NONE, null, false);
+    }
+
     public static void start(@NonNull Activity activity, @NonNull String deviceName, boolean autoConnect) {
         String suffix = extractSuffixFromDeviceName(deviceName);
         if (suffix == null) {
@@ -142,6 +169,14 @@ public class KiberWifiServiceManager extends Service {
                 .putBoolean(PREF_AUTOCONNECT_ENABLED, autoConnect)
                 .apply();
         start(activity.getApplicationContext(), activity.getString(R.string.foreground_service_text_autoconnect_waiting), false);
+    }
+
+    public static void startManaged(@NonNull Activity activity, @NonNull String contentText, boolean connected) {
+        if (hasRuntimePermissions(activity, true) && hasBatteryOptimizationExemption(activity)) {
+            start(activity.getApplicationContext(), contentText, connected);
+            return;
+        }
+        launchPermissionProxy(activity, PENDING_ACTION_START, contentText, connected);
     }
 
     public static void stop(Context context) {
@@ -158,6 +193,14 @@ public class KiberWifiServiceManager extends Service {
         Intent intent = new Intent(context, KiberWifiServiceManager.class);
         intent.setAction(ACTION_ENABLE_CONNECT);
         ContextCompat.startForegroundService(context, intent);
+    }
+
+    public static void enableConnect(@NonNull Activity activity) {
+        if (hasRuntimePermissions(activity, true) && hasBatteryOptimizationExemption(activity)) {
+            enableConnect(activity.getApplicationContext());
+            return;
+        }
+        launchPermissionProxy(activity, PENDING_ACTION_ENABLE_CONNECT, null, false);
     }
 
     public static void disableConnect(@NonNull Context context) {
@@ -181,6 +224,13 @@ public class KiberWifiServiceManager extends Service {
         eventListener = listener;
     }
 
+    public static void setHostAppInForeground(@NonNull Context context, boolean inForeground) {
+        hostAppInForeground = inForeground;
+        if (inForeground) {
+            maybeShowPendingConnectionRefusedDialog(context.getApplicationContext());
+        }
+    }
+
     @NonNull
     public static KiberStatus getStatus() {
         return currentStatus;
@@ -188,6 +238,64 @@ public class KiberWifiServiceManager extends Service {
 
     public static boolean isTargetPresent() {
         return targetPresentGlobal;
+    }
+
+    private static void maybeShowPendingConnectionRefusedDialog(@NonNull Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        if (!prefs.getBoolean(PREF_CONNECTION_REFUSED_PENDING, false)) {
+            return;
+        }
+        prefs.edit().putBoolean(PREF_CONNECTION_REFUSED_PENDING, false).apply();
+        Intent intent = new Intent(context, KiberConnectionRefusedDialogActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        context.startActivity(intent);
+    }
+
+    private static boolean hasRuntimePermissions(@NonNull Context context, boolean includeBackgroundLocation) {
+        boolean hasLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
+        if (!hasLocation) {
+            return false;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN)
+                    != PackageManager.PERMISSION_GRANTED) return false;
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT)
+                    != PackageManager.PERMISSION_GRANTED) return false;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+        if (includeBackgroundLocation && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                && ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean hasBatteryOptimizationExemption(@NonNull Context context) {
+        PowerManager pm = context.getSystemService(PowerManager.class);
+        return pm == null || pm.isIgnoringBatteryOptimizations(context.getPackageName());
+    }
+
+    private static void launchPermissionProxy(
+            @NonNull Activity activity,
+            @NonNull String pendingAction,
+            @Nullable String contentText,
+            boolean connected
+    ) {
+        Intent intent = new Intent(activity, KiberPermissionProxyActivity.class);
+        intent.putExtra(EXTRA_PENDING_ACTION, pendingAction);
+        if (contentText != null) {
+            intent.putExtra(EXTRA_CONTENT_TEXT, contentText);
+        }
+        intent.putExtra(EXTRA_CONNECTED, connected);
+        activity.startActivity(intent);
     }
 
     private static String extractSuffixFromDeviceName(String deviceName) {
@@ -427,6 +535,41 @@ public class KiberWifiServiceManager extends Service {
         return wifiManager == null || !wifiManager.isWifiEnabled();
     }
 
+    private boolean isBluetoothDisabled() {
+        return bluetoothAdapter == null || !bluetoothAdapter.isEnabled();
+    }
+
+    private boolean ensureRadiosReadyAndPromptIfNeeded() {
+        if (isWifiDisabled()) {
+            updateNotification(getString(R.string.foreground_service_text_wifi_disabled), false);
+            emitStatus(KiberStatus.IDLING, "KIBER_WIFI_OFF");
+            maybeShowRadioDialog(RADIO_TYPE_WIFI);
+            return false;
+        }
+        if (isBluetoothDisabled()) {
+            emitStatus(KiberStatus.IDLING, "KIBER_BT_OFF");
+            maybeShowRadioDialog(RADIO_TYPE_BT);
+            return false;
+        }
+        return true;
+    }
+
+    private void maybeShowRadioDialog(@NonNull String radioType) {
+        if (!hostAppInForeground) {
+            return;
+        }
+        long now = SystemClock.elapsedRealtime();
+        if (radioType.equals(lastRadioDialogType) && (now - lastRadioDialogAtMs) < 3_000L) {
+            return;
+        }
+        lastRadioDialogType = radioType;
+        lastRadioDialogAtMs = now;
+        Intent intent = new Intent(getApplicationContext(), KiberRadioStateDialogActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putExtra(EXTRA_RADIO_TYPE, radioType);
+        startActivity(intent);
+    }
+
     private boolean isConnectedToKiberscopeApNow() {
         try {
             if (wifiManager == null || wifiManager.getConnectionInfo() == null) {
@@ -474,9 +617,7 @@ public class KiberWifiServiceManager extends Service {
         }
         Log.d(TAG, "Service autoconnect attempt started");
 
-        if (isWifiDisabled()) {
-            updateNotification(getString(R.string.foreground_service_text_wifi_disabled), false);
-            emitStatus(KiberStatus.IDLING, "KIBER_WIFI_OFF");
+        if (!ensureRadiosReadyAndPromptIfNeeded()) {
             scheduleRetry();
             return;
         }
@@ -512,6 +653,10 @@ public class KiberWifiServiceManager extends Service {
     @SuppressLint("MissingPermission")
     private void startBleScan() {
         if (isBleScanning || connectedState || connectionInProgress) {
+            return;
+        }
+        if (!ensureRadiosReadyAndPromptIfNeeded()) {
+            scheduleRetry();
             return;
         }
         long now = SystemClock.elapsedRealtime();
@@ -807,6 +952,7 @@ public class KiberWifiServiceManager extends Service {
         clearNetworkCallback();
         connectionInProgress = true;
         updateNotification(getString(R.string.foreground_service_text_connecting), false);
+        emitStatus(KiberStatus.CONNECTING, "KIBER_CONNECTING");
         
         Log.d(TAG, "Service requesting network for " + targetSsid);
 
@@ -849,6 +995,7 @@ public class KiberWifiServiceManager extends Service {
                 clearNetworkCallback();
                 updateNotification(getString(R.string.foreground_service_text_autoconnect_waiting), false);
                 emitStatus(KiberStatus.DISCONNECTED, "KIBER_DISCONNECTED");
+                ensureRadiosReadyAndPromptIfNeeded();
                 scheduleRetry();
             }
 
@@ -861,6 +1008,10 @@ public class KiberWifiServiceManager extends Service {
                 getPrefs().edit().putBoolean(PREF_CONNECTION_REFUSED_PENDING, true).apply();
                 targetPresentGlobal = false;
                 emitStatus(KiberStatus.ERROR, "KIBER_CONNECTION_REFUSED");
+                if (hostAppInForeground) {
+                    maybeShowPendingConnectionRefusedDialog(getApplicationContext());
+                }
+                ensureRadiosReadyAndPromptIfNeeded();
                 clearNetworkCallback();
                 disableAutoConnectAfterFailure();
             }
@@ -965,6 +1116,288 @@ public class KiberWifiServiceManager extends Service {
             } catch (Exception e) {
                 Log.w(TAG, "Listener callback failed", e);
             }
+        }
+    }
+    public static class KiberPermissionProxyActivity extends AppCompatActivity {
+    private static final int REQ_CORE = 1001;
+    private static final int REQ_BACKGROUND_LOCATION = 1002;
+
+    private String pendingAction = KiberWifiServiceManager.PENDING_ACTION_NONE;
+    private String pendingContentText = null;
+    private boolean pendingConnected = false;
+    private boolean waitingBackgroundSettings = false;
+    private boolean waitingBatterySettings = false;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        Intent intent = getIntent();
+        if (intent != null) {
+            pendingAction = intent.getStringExtra(KiberWifiServiceManager.EXTRA_PENDING_ACTION);
+            if (pendingAction == null) pendingAction = KiberWifiServiceManager.PENDING_ACTION_NONE;
+            pendingContentText = intent.getStringExtra("extra_content_text");
+            pendingConnected = intent.getBooleanExtra("extra_connected", false);
+        }
+        requestMissingPermissions();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (waitingBackgroundSettings) {
+            waitingBackgroundSettings = false;
+            if (hasBackgroundLocationPermission()) {
+                maybeRequestBatteryOptimizationExemption();
+            } else {
+                Toast.makeText(this, R.string.background_location_permission_required, Toast.LENGTH_LONG).show();
+                finish();
+            }
+            return;
+        }
+        if (waitingBatterySettings) {
+            waitingBatterySettings = false;
+            completePendingAction();
+        }
+    }
+
+    private void requestMissingPermissions() {
+        List<String> permissionsToRequest = new ArrayList<>();
+        if (!hasLocationPermission()) {
+            permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION);
+            permissionsToRequest.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN);
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT);
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS);
+        }
+        if (!permissionsToRequest.isEmpty()) {
+            ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), REQ_CORE);
+            return;
+        }
+        requestBackgroundLocationIfNeeded();
+    }
+
+    private void requestBackgroundLocationIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            maybeRequestBatteryOptimizationExemption();
+            return;
+        }
+        if (hasBackgroundLocationPermission()) {
+            maybeRequestBatteryOptimizationExemption();
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.background_location_dialog_title)
+                    .setMessage(R.string.background_location_dialog_message)
+                    .setPositiveButton(R.string.background_location_dialog_open_settings, (dialog, which) -> {
+                        waitingBackgroundSettings = true;
+                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                        intent.setData(Uri.fromParts("package", getPackageName(), null));
+                        startActivity(intent);
+                    })
+                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> finish())
+                    .setOnCancelListener(dialog -> finish())
+                    .show();
+            return;
+        }
+        ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION},
+                REQ_BACKGROUND_LOCATION);
+    }
+
+    private boolean hasBackgroundLocationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true;
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void maybeRequestBatteryOptimizationExemption() {
+        PowerManager pm = getSystemService(PowerManager.class);
+        if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) {
+            completePendingAction();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.battery_optimization_dialog_title)
+                .setMessage(R.string.battery_optimization_dialog_message)
+                .setPositiveButton(R.string.battery_optimization_dialog_open_settings, (dialog, which) -> {
+                    waitingBatterySettings = true;
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    try {
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        waitingBatterySettings = false;
+                        completePendingAction();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> completePendingAction())
+                .setOnCancelListener(dialog -> completePendingAction())
+                .show();
+    }
+
+    private boolean hasLocationPermission() {
+        boolean fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        boolean coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        return fine || coarse;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_CORE) {
+            if (!allGranted(grantResults)) {
+                Toast.makeText(this, "Permessi necessari per il funzionamento", Toast.LENGTH_LONG).show();
+                finish();
+                return;
+            }
+            requestBackgroundLocationIfNeeded();
+            return;
+        }
+        if (requestCode == REQ_BACKGROUND_LOCATION) {
+            if (!allGranted(grantResults)) {
+                Toast.makeText(this, R.string.background_location_permission_required, Toast.LENGTH_LONG).show();
+                finish();
+                return;
+            }
+            maybeRequestBatteryOptimizationExemption();
+        }
+    }
+
+    private boolean allGranted(int[] grantResults) {
+        if (grantResults == null || grantResults.length == 0) return false;
+        for (int grantResult : grantResults) {
+            if (grantResult != PackageManager.PERMISSION_GRANTED) return false;
+        }
+        return true;
+    }
+
+    private void completePendingAction() {
+        if (KiberWifiServiceManager.PENDING_ACTION_START.equals(pendingAction)) {
+            String text = pendingContentText != null
+                    ? pendingContentText
+                    : getString(R.string.foreground_service_text_autoconnect_waiting);
+            KiberWifiServiceManager.start(getApplicationContext(), text, pendingConnected);
+        } else if (KiberWifiServiceManager.PENDING_ACTION_ENABLE_CONNECT.equals(pendingAction)) {
+            KiberWifiServiceManager.enableConnect(getApplicationContext());
+        }
+        finish();
+    }
+    }
+
+    public static class KiberConnectionRefusedDialogActivity extends AppCompatActivity {
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.connection_refused_notification_title)
+                    .setMessage(R.string.connection_refused_notification_body)
+                    .setPositiveButton(android.R.string.ok, (dialog, which) -> finish())
+                    .setOnCancelListener(dialog -> finish())
+                    .show();
+        }
+    }
+
+    public static class KiberRadioStateDialogActivity extends AppCompatActivity {
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            String radioType = getIntent() != null ? getIntent().getStringExtra(EXTRA_RADIO_TYPE) : null;
+            boolean wifi = RADIO_TYPE_WIFI.equals(radioType);
+            int title = wifi ? R.string.status_warning_wifi_off : R.string.status_warning_bluetooth_off;
+            String message = wifi
+                    ? "Wi-Fi spento. Attivalo per continuare."
+                    : "Bluetooth spento. Attivalo per continuare.";
+            new AlertDialog.Builder(this)
+                    .setTitle(title)
+                    .setMessage(message)
+                    .setPositiveButton("Apri impostazioni", (dialog, which) -> {
+                        Intent intent = wifi
+                                ? new Intent(Settings.ACTION_WIFI_SETTINGS)
+                                : new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                        startActivity(intent);
+                        finish();
+                    })
+                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> finish())
+                    .setOnCancelListener(dialog -> finish())
+                    .show();
+        }
+    }
+
+    static final class BeepHelper {
+        private static final String TAG = "BeepHelper";
+        private static ToneGenerator toneGen;
+        private static int toneStream = -1;
+        private static long lastBeepTimeMs = 0;
+        private static Boolean lastBeepState = null;
+
+        static synchronized void playBeep(Context context, boolean connected) {
+            long now = SystemClock.elapsedRealtime();
+            if (lastBeepState != null && lastBeepState == connected && (now - lastBeepTimeMs < 2000)) {
+                Log.d(TAG, "Beep skipped (debounce)");
+                return;
+            }
+
+            lastBeepState = connected;
+            lastBeepTimeMs = now;
+
+            try {
+                AudioManager audioManager = (AudioManager) context.getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
+                int bestStream = chooseAudibleStream(audioManager);
+                if (bestStream == -1) {
+                    Log.w(TAG, "No audible audio stream available for beep");
+                    return;
+                }
+
+                if (toneGen == null || toneStream != bestStream) {
+                    if (toneGen != null) {
+                        toneGen.release();
+                    }
+                    toneGen = new ToneGenerator(bestStream, 100);
+                    toneStream = bestStream;
+                }
+
+                boolean started;
+                if (connected) {
+                    Log.d(TAG, "Playing CONNECT beep");
+                    started = toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 150);
+                } else {
+                    Log.d(TAG, "Playing DISCONNECT beep");
+                    started = toneGen.startTone(ToneGenerator.TONE_PROP_BEEP2, 300);
+                }
+
+                if (!started) {
+                    Log.w(TAG, "ToneGenerator.startTone returned false");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error playing beep", e);
+            }
+        }
+
+        private static int chooseAudibleStream(AudioManager audioManager) {
+            if (audioManager == null) {
+                return AudioManager.STREAM_NOTIFICATION;
+            }
+            if (audioManager.getRingerMode() == AudioManager.RINGER_MODE_NORMAL
+                    && audioManager.getStreamVolume(AudioManager.STREAM_NOTIFICATION) > 0) {
+                return AudioManager.STREAM_NOTIFICATION;
+            }
+            if (audioManager.getStreamVolume(AudioManager.STREAM_ALARM) > 0) {
+                return AudioManager.STREAM_ALARM;
+            }
+            if (audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) > 0) {
+                return AudioManager.STREAM_MUSIC;
+            }
+            return -1;
         }
     }
 }
