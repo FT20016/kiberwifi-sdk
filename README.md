@@ -102,4 +102,3 @@ git push origin main --tags
 ```
 
 Regola consigliata: **ogni release Maven deve avere il tag Git corrispondente**.
-
