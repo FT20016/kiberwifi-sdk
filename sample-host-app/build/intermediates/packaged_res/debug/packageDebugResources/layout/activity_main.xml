@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="IDLING"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <EditText
+        android:id="@+id/deviceNameInput"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:hint="NT3XC"
+        android:inputType="textCapCharacters"
+        android:text="NT3XC"
+        app:layout_constraintTop_toBottomOf="@id/statusText"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="20dp" />
+
+    <Button
+        android:id="@+id/startBtn"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Start SDK"
+        app:layout_constraintTop_toBottomOf="@id/deviceNameInput"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp" />
+
+    <Button
+        android:id="@+id/connectBtn"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Connect"
+        app:layout_constraintTop_toBottomOf="@id/startBtn"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="12dp" />
+
+    <Button
+        android:id="@+id/disconnectBtn"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Disconnect"
+        app:layout_constraintTop_toBottomOf="@id/connectBtn"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="12dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

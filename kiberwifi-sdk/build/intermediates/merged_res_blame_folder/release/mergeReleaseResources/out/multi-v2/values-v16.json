@@ -1,0 +1,36 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.kiber.sdk.kiberwifi-sdk-release-32:/values-v16/values-v16.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\Franco\\.gradle\\caches\\8.13\\transforms\\ad3914d6aed99926b40e54e6c888add3\\transformed\\appcompat-1.7.1\\res\\values-v16\\values-v16.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "5",
+                        "endColumns": "12",
+                        "endOffsets": "223"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "com.kiber.sdk.kiberwifi-sdk-mergeReleaseResources-30:/values-v16/values-v16.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\Franco\\.gradle\\caches\\8.13\\transforms\\ad3914d6aed99926b40e54e6c888add3\\transformed\\appcompat-1.7.1\\res\\values-v16\\values-v16.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "5",
+                        "endColumns": "12",
+                        "endOffsets": "223"
+                    }
+                }
+            ]
+        }
+    ]
+}

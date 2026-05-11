@@ -1,0 +1,25 @@
+<resources>
+    <string name="background_location_permission_required">Concedi la localizzazione sempre attiva per usare autoconnect in background</string>
+    <string name="background_location_dialog_title">Permesso richiesto</string>
+    <string name="background_location_dialog_message">Per usare autoconnect in background devi consentire la localizzazione sempre attiva nelle impostazioni dell app.</string>
+    <string name="background_location_dialog_open_settings">Apri impostazioni app</string>
+    <string name="battery_optimization_dialog_title">Ottimizzazione batteria</string>
+    <string name="battery_optimization_dialog_message">Per migliorare la reattivita in background, disattiva l ottimizzazione batteria per questa app.</string>
+    <string name="battery_optimization_dialog_open_settings">Disattiva ottimizzazione</string>
+    <string name="foreground_service_channel_name">Connessione in background</string>
+    <string name="foreground_service_channel_description">Mantiene attiva la connessione KIBERSCOPE WiFi in background</string>
+    <string name="foreground_service_title">KIBERSCOPE WiFi in esecuzione</string>
+    <string name="foreground_service_text_default">Servizio attivo in background</string>
+    <string name="foreground_service_text_connected">Connessione KIBERSCOPE WiFi attiva in background</string>
+    <string name="foreground_service_text_autoconnect_waiting">Autoconnect attivo in background</string>
+    <string name="foreground_service_text_searching">Ricerca dispositivo KIBERSCOPE in background</string>
+    <string name="foreground_service_text_connecting">Connessione KIBERSCOPE in corso</string>
+    <string name="foreground_service_text_connection_refused">Connessione rifiutata. Verifica se il dispositivo e gia ingaggiato.</string>
+    <string name="foreground_service_text_wifi_disabled">Attiva il Wi-Fi per autoconnect</string>
+    <string name="foreground_service_text_background_location_required">Concedi la localizzazione sempre attiva per autoconnect in background</string>
+    <string name="foreground_service_text_waiting_suffix">Inserisci un seriale valido per autoconnect</string>
+    <string name="status_warning_wifi_off">Attiva il Wi-Fi per il corretto funzionamento</string>
+    <string name="status_warning_bluetooth_off">Attiva il Bluetooth per il corretto funzionamento</string>
+    <string name="connection_refused_notification_title">Connessione KIBERSCOPE rifiutata</string>
+    <string name="connection_refused_notification_body">Connessione rifiutata. Controllare che il dispositivo non sia gia ingaggiato.</string>
+</resources>

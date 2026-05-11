@@ -1,0 +1,74 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.kiber",
+    "module": "kiberwifi-sdk",
+    "version": "0.2.5",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.13"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "kiberwifi-sdk-0.2.5.aar",
+          "url": "kiberwifi-sdk-0.2.5.aar",
+          "size": 41451,
+          "sha512": "d2157061628aa990a5814d3cbc0cfb31f15c139289b38c0b083f03f9d164a955c049108680fb6aea7d9d0dc0c0007a9b1be36363264bff31382f1fe0e75497e0",
+          "sha256": "2d49a44e1ffd17cfaf1ce2f2cceb755b8a79d6039d423f81b6f19f4607a7930f",
+          "sha1": "f46b6773df0222be6825b3bdbfd90f9c62a388c0",
+          "md5": "02168fff4930ebe8e484aa8105936dc6"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.appcompat",
+          "module": "appcompat",
+          "version": {
+            "requires": "1.7.1"
+          }
+        },
+        {
+          "group": "com.google.android.material",
+          "module": "material",
+          "version": {
+            "requires": "1.13.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "kiberwifi-sdk-0.2.5.aar",
+          "url": "kiberwifi-sdk-0.2.5.aar",
+          "size": 41451,
+          "sha512": "d2157061628aa990a5814d3cbc0cfb31f15c139289b38c0b083f03f9d164a955c049108680fb6aea7d9d0dc0c0007a9b1be36363264bff31382f1fe0e75497e0",
+          "sha256": "2d49a44e1ffd17cfaf1ce2f2cceb755b8a79d6039d423f81b6f19f4607a7930f",
+          "sha1": "f46b6773df0222be6825b3bdbfd90f9c62a388c0",
+          "md5": "02168fff4930ebe8e484aa8105936dc6"
+        }
+      ]
+    }
+  ]
+}

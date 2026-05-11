@@ -1,0 +1,210 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.kiber.sample"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="29"
+9        android:targetSdkVersion="36" />
+10
+11    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+11-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:7:5-76
+11-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:7:22-73
+12    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+12-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:8:5-76
+12-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:8:22-73
+13    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+13-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:9:5-79
+13-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:9:22-76
+14    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+14-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:10:5-79
+14-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:10:22-76
+15    <uses-permission android:name="android.permission.INTERNET" />
+15-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:11:5-67
+15-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:11:22-64
+16    <uses-permission android:name="android.permission.WAKE_LOCK" />
+16-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:12:5-68
+16-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:12:22-65
+17    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+17-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:13:5-95
+17-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:13:22-92
+18    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+18-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:14:5-77
+18-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:14:22-74
+19    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+19-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:15:5-94
+19-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:15:22-91
+20    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+20-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:16:5-77
+20-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:16:22-74
+21    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+21-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:17:5-81
+21-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:17:22-78
+22    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+22-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:18:5-79
+22-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:18:22-76
+23    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+23-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:19:5-85
+23-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:19:22-82
+24    <uses-permission
+24-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:20:5-22:38
+25        android:name="android.permission.BLUETOOTH"
+25-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:21:9-52
+26        android:maxSdkVersion="30" />
+26-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:22:9-35
+27    <uses-permission
+27-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:23:5-25:38
+28        android:name="android.permission.BLUETOOTH_ADMIN"
+28-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:24:9-58
+29        android:maxSdkVersion="30" />
+29-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:25:9-35
+30    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+30-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:26:5-73
+30-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:26:22-70
+31    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+31-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:27:5-76
+31-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:27:22-73
+32
+33    <permission
+33-->[androidx.core:core:1.16.0] C:\Users\Franco\.gradle\caches\8.13\transforms\62916262f7bc52c58931de233e652b02\transformed\core-1.16.0\AndroidManifest.xml:22:5-24:47
+34        android:name="com.kiber.sample.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+34-->[androidx.core:core:1.16.0] C:\Users\Franco\.gradle\caches\8.13\transforms\62916262f7bc52c58931de233e652b02\transformed\core-1.16.0\AndroidManifest.xml:23:9-81
+35        android:protectionLevel="signature" />
+35-->[androidx.core:core:1.16.0] C:\Users\Franco\.gradle\caches\8.13\transforms\62916262f7bc52c58931de233e652b02\transformed\core-1.16.0\AndroidManifest.xml:24:9-44
+36
+37    <uses-permission android:name="com.kiber.sample.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+37-->[androidx.core:core:1.16.0] C:\Users\Franco\.gradle\caches\8.13\transforms\62916262f7bc52c58931de233e652b02\transformed\core-1.16.0\AndroidManifest.xml:26:5-97
+37-->[androidx.core:core:1.16.0] C:\Users\Franco\.gradle\caches\8.13\transforms\62916262f7bc52c58931de233e652b02\transformed\core-1.16.0\AndroidManifest.xml:26:22-94
+38
+39    <application
+39-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:3:5-16:19
+40        android:allowBackup="true"
+40-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:4:9-35
+41        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+41-->[androidx.core:core:1.16.0] C:\Users\Franco\.gradle\caches\8.13\transforms\62916262f7bc52c58931de233e652b02\transformed\core-1.16.0\AndroidManifest.xml:28:18-86
+42        android:debuggable="true"
+43        android:extractNativeLibs="false"
+44        android:label="Kiber SDK Sample"
+44-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:5:9-41
+45        android:supportsRtl="true"
+45-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:6:9-35
+46        android:testOnly="true"
+47        android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" >
+47-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:7:9-77
+48        <activity
+48-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:8:9-15:20
+49            android:name="com.kiber.sample.MainActivity"
+49-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:9:13-41
+50            android:exported="true" >
+50-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:10:13-36
+51            <intent-filter>
+51-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:11:13-14:29
+52                <action android:name="android.intent.action.MAIN" />
+52-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:12:17-69
+52-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:12:25-66
+53
+54                <category android:name="android.intent.category.LAUNCHER" />
+54-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:13:17-77
+54-->C:\Users\Franco\AndroidStudioProjects\DirectWifi2\sample-host-app\src\main\AndroidManifest.xml:13:27-74
+55            </intent-filter>
+56        </activity>
+57
+58        <service
+58-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:30:9-34:63
+59            android:name="com.kiber.sdk.KiberWifiServiceManager"
+59-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:31:13-65
+60            android:enabled="true"
+60-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:32:13-35
+61            android:exported="false"
+61-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:33:13-37
+62            android:foregroundServiceType="connectedDevice" />
+62-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:34:13-60
+63
+64        <activity
+64-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:36:9-38:40
+65            android:name="com.kiber.sdk.KiberWifiServiceManager$KiberPermissionProxyActivity"
+65-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:37:13-94
+66            android:exported="false" />
+66-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:38:13-37
+67        <activity
+67-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:39:9-41:40
+68            android:name="com.kiber.sdk.KiberWifiServiceManager$KiberConnectionRefusedDialogActivity"
+68-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:40:13-102
+69            android:exported="false" />
+69-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:41:13-37
+70        <activity
+70-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:42:9-44:40
+71            android:name="com.kiber.sdk.KiberWifiServiceManager$KiberRadioStateDialogActivity"
+71-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:43:13-95
+72            android:exported="false" />
+72-->[:kiberwifi-sdk] C:\Users\Franco\AndroidStudioProjects\DirectWifi2\kiberwifi-sdk\build\intermediates\merged_manifest\debug\processDebugManifest\AndroidManifest.xml:44:13-37
+73
+74        <provider
+74-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Franco\.gradle\caches\8.13\transforms\d8e4a8cd02e50b04db73e89989096777\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
+75            android:name="androidx.startup.InitializationProvider"
+75-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Franco\.gradle\caches\8.13\transforms\d8e4a8cd02e50b04db73e89989096777\transformed\emoji2-1.3.0\AndroidManifest.xml:25:13-67
+76            android:authorities="com.kiber.sample.androidx-startup"
+76-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Franco\.gradle\caches\8.13\transforms\d8e4a8cd02e50b04db73e89989096777\transformed\emoji2-1.3.0\AndroidManifest.xml:26:13-68
+77            android:exported="false" >
+77-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Franco\.gradle\caches\8.13\transforms\d8e4a8cd02e50b04db73e89989096777\transformed\emoji2-1.3.0\AndroidManifest.xml:27:13-37
+78            <meta-data
+78-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Franco\.gradle\caches\8.13\transforms\d8e4a8cd02e50b04db73e89989096777\transformed\emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
+79                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+79-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Franco\.gradle\caches\8.13\transforms\d8e4a8cd02e50b04db73e89989096777\transformed\emoji2-1.3.0\AndroidManifest.xml:30:17-75
+80                android:value="androidx.startup" />
+80-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Franco\.gradle\caches\8.13\transforms\d8e4a8cd02e50b04db73e89989096777\transformed\emoji2-1.3.0\AndroidManifest.xml:31:17-49
+81            <meta-data
+81-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\Franco\.gradle\caches\8.13\transforms\e1f06eaa36e14e8332d21aa86d0449a0\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:29:13-31:52
+82                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+82-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\Franco\.gradle\caches\8.13\transforms\e1f06eaa36e14e8332d21aa86d0449a0\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:30:17-78
+83                android:value="androidx.startup" />
+83-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\Franco\.gradle\caches\8.13\transforms\e1f06eaa36e14e8332d21aa86d0449a0\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:31:17-49
+84            <meta-data
+84-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:29:13-31:52
+85                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+85-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:30:17-85
+86                android:value="androidx.startup" />
+86-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:31:17-49
+87        </provider>
+88
+89        <receiver
+89-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:34:9-52:20
+90            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+90-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:35:13-76
+91            android:directBootAware="false"
+91-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:36:13-44
+92            android:enabled="true"
+92-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:37:13-35
+93            android:exported="true"
+93-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:38:13-36
+94            android:permission="android.permission.DUMP" >
+94-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:39:13-57
+95            <intent-filter>
+95-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:40:13-42:29
+96                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+96-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:41:17-91
+96-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:41:25-88
+97            </intent-filter>
+98            <intent-filter>
+98-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:43:13-45:29
+99                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+99-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:44:17-85
+99-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:44:25-82
+100            </intent-filter>
+101            <intent-filter>
+101-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:46:13-48:29
+102                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+102-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:47:17-88
+102-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:47:25-85
+103            </intent-filter>
+104            <intent-filter>
+104-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:49:13-51:29
+105                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+105-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:50:17-95
+105-->[androidx.profileinstaller:profileinstaller:1.4.0] C:\Users\Franco\.gradle\caches\8.13\transforms\7fc9dfbb2af92c98fefef3aaae15bf0e\transformed\profileinstaller-1.4.0\AndroidManifest.xml:50:25-92
+106            </intent-filter>
+107        </receiver>
+108    </application>
+109
+110</manifest>
