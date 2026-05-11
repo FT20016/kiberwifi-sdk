@@ -52,12 +52,23 @@ com.kiber.kiberwifi.KiberWifiServiceManager.enableConnect(this)             // C
 com.kiber.kiberwifi.KiberWifiServiceManager.disableConnect(applicationContext) // Disconnect + stop connect intent
 ```
 
+Semantica consigliata:
+- `start(activity, serial, false)`: avvia manager + discovery BLE, ma non connette Wi-Fi automaticamente.
+- `enableConnect(...)`: abilita la connessione Wi-Fi quando il target viene trovato.
+- `disableConnect(...)`: forza disconnessione e mantiene il manager in stato di discovery/monitoraggio.
+
 ## 4. Cambio target device
 
 Quando cambia seriale/device name usa direttamente:
 
 ```kotlin
 com.kiber.kiberwifi.KiberWifiServiceManager.changeDeviceSerial(context, "NT3XC")
+```
+
+Esempio Java:
+
+```java
+KiberWifiServiceManager.changeDeviceSerial(getApplicationContext(), "NT3XC");
 ```
 
 ## 5. Shutdown app
@@ -96,3 +107,19 @@ class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceMa
 ```
 
 Eventi disponibili e mapping consigliato: vedi [events.md](events.md).
+
+## 7. Uso di `isTargetPresent()` per UI pulsanti
+
+`isTargetPresent()` espone se il target BLE e stato rilevato di recente.
+
+Esempio Java minimale:
+
+```java
+boolean canConnect = KiberWifiServiceManager.isTargetPresent();
+connectButton.setEnabled(canConnect);
+```
+
+Pattern tipico:
+- disabilita "Connetti" quando `false`
+- abilita "Connetti" quando `true`
+- in callback `KIBER_TARGET_PRESENT` / `KIBER_TARGET_ABSENT` aggiorna lo stato UI
