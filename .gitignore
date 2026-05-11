@@ -9,6 +9,8 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+/kiberwifi-sdk/build
+/sample-host-app/build
 /captures
 .externalNativeBuild
 .cxx
