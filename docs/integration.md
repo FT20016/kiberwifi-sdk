@@ -69,3 +69,30 @@ com.kiber.kiberwifi.KiberWifiServiceManager.stop(applicationContext)
 ```
 
 (Se vuoi mantenere comportamento background anche ad app chiusa, non chiamare `stop`.)
+
+## 6. Callback eventi (opzionale)
+
+Registra una callback per ricevere stato e messaggi runtime:
+
+```kotlin
+class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceManager.KiberEventListener {
+    override fun onResume() {
+        super.onResume()
+        com.kiber.kiberwifi.KiberWifiServiceManager.setListener(this)
+    }
+
+    override fun onPause() {
+        com.kiber.kiberwifi.KiberWifiServiceManager.setListener(null)
+        super.onPause()
+    }
+
+    override fun onKiberEvent(
+        status: com.kiber.kiberwifi.KiberWifiServiceManager.KiberStatus,
+        message: String
+    ) {
+        // aggiorna UI/stato host app
+    }
+}
+```
+
+Eventi disponibili e mapping consigliato: vedi [events.md](events.md).
