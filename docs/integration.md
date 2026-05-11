@@ -54,10 +54,11 @@ com.kiber.kiberwifi.KiberWifiServiceManager.disableConnect(applicationContext) /
 
 ## 4. Cambio target device
 
-Quando cambia seriale/device name:
-1. `clearLearnedBleFilters(context)`
-2. `stop(context)`
-3. `start(...)` con nuovo target
+Quando cambia seriale/device name usa direttamente:
+
+```kotlin
+com.kiber.kiberwifi.KiberWifiServiceManager.changeDeviceSerial(context, "NT3XC")
+```
 
 ## 5. Shutdown app
 
