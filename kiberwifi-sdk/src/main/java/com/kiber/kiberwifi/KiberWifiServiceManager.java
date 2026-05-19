@@ -7,6 +7,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 public final class KiberWifiServiceManager {
+    public static final int START_RESULT_OK = com.kiber.sdk.KiberWifiServiceManager.START_RESULT_OK;
+    public static final int START_RESULT_SUSPENDED = com.kiber.sdk.KiberWifiServiceManager.START_RESULT_SUSPENDED;
     private KiberWifiServiceManager() {
     }
 
@@ -24,24 +26,32 @@ public final class KiberWifiServiceManager {
         void onKiberEvent(@NonNull KiberStatus status, @NonNull String message);
     }
 
-    public static void ensureRunning(@NonNull Context context) {
-        com.kiber.sdk.KiberWifiServiceManager.ensureRunning(context);
+    public static int ensureRunning(@NonNull Context context) {
+        return com.kiber.sdk.KiberWifiServiceManager.ensureRunning(context);
     }
 
     public static void ensurePermissions(@NonNull Activity activity) {
         com.kiber.sdk.KiberWifiServiceManager.ensurePermissions(activity);
     }
 
-    public static void start(@NonNull Context context, @NonNull String contentText, boolean connected) {
-        com.kiber.sdk.KiberWifiServiceManager.start(context, contentText, connected);
+    public static void setLanguage(@NonNull String languageCode) {
+        com.kiber.sdk.KiberWifiServiceManager.setLanguage(languageCode);
     }
 
-    public static void start(@NonNull Activity activity, @NonNull String deviceSerial, boolean autoConnect) {
-        com.kiber.sdk.KiberWifiServiceManager.start(activity, deviceSerial, autoConnect);
+    public static void resetSessionState() {
+        com.kiber.sdk.KiberWifiServiceManager.resetSessionState();
     }
 
-    public static void startManaged(@NonNull Activity activity, @NonNull String contentText, boolean connected) {
-        com.kiber.sdk.KiberWifiServiceManager.startManaged(activity, contentText, connected);
+    public static int start(@NonNull Context context, @NonNull String contentText, boolean connected) {
+        return com.kiber.sdk.KiberWifiServiceManager.start(context, contentText, connected);
+    }
+
+    public static int start(@NonNull Activity activity, @NonNull String deviceSerial, boolean autoConnect) {
+        return com.kiber.sdk.KiberWifiServiceManager.start(activity, deviceSerial, autoConnect);
+    }
+
+    public static int startManaged(@NonNull Activity activity, @NonNull String contentText, boolean connected) {
+        return com.kiber.sdk.KiberWifiServiceManager.startManaged(activity, contentText, connected);
     }
 
     public static void stop(@NonNull Context context) {

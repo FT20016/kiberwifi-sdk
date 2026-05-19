@@ -35,6 +35,10 @@
             android:exported="false" />
 
         <activity
+            android:name="com.kiber.sdk.KiberWifiServiceManager$KiberTooManyRetriesDialogActivity"
+            android:exported="false" />
+
+        <activity
             android:name="com.kiber.sdk.KiberWifiServiceManager$KiberRadioStateDialogActivity"
             android:exported="false" />
     </application>

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.7
+- Added `resetSessionState()` API to explicitly clear session-level SDK flags (`suspended`, retry block/counter) on host app exit.
+- Connected state hardening:
+  - exact target-SSID match only (no prefix-only match in host-side checks),
+  - connection stabilization window before emitting `CONNECTED` to avoid brief false-green UI flashes.
+- Improved diagnostics around stop/lock/service lifecycle to simplify logcat troubleshooting.
+- Several bug fixing and stability improvements.
+
+## 0.2.6
+- Connessione rifiutata: pulsante dialog cambiato da `OK` a `Retry`.
+- Durante la dialog di rifiuto attiva, sospesi i tentativi di connessione Wi-Fi.
+- Su `Retry`, lo SDK riabilita il connect flow e riparte dal ciclo standard di scan/connessione.
+
 ## 0.2.5
 - Aggiunta facade compatibile nel package pubblico `com.kiber.kiberwifi.KiberWifiServiceManager`.
 - Migliorata logica di no-op inter-app: se un altro APK ha gia' il manager attivo, l'host non avvia/ferma nulla e non crea notifiche aggiuntive.

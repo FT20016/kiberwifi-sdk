@@ -36,9 +36,5 @@ dependencies {
     implementation(libs.activity)
     implementation(libs.constraintlayout)
 
-    // Local module dependency for sample development.
-    implementation(project(":kiberwifi-sdk"))
-
-    // To test published package instead, replace with:
-    // implementation("com.kiber:kiberwifi-sdk:0.2.0")
+    implementation("com.kiber:kiberwifi-sdk:0.2.7")
 }

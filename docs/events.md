@@ -1,14 +1,4 @@
-ï»¿# Eventi e Stati
-
-## Registrazione callback
-
-- Registra: `KiberWifiServiceManager.setListener(listener)`
-- Deregistra: `KiberWifiServiceManager.setListener(null)`
-- Firma callback: `onKiberEvent(KiberStatus status, String message)`
-
-Consiglio lifecycle host app:
-- `onResume`: registra listener
-- `onPause`: deregistra listener
+# Eventi e Stati
 
 ## `KiberStatus`
 
@@ -45,4 +35,4 @@ Consiglio lifecycle host app:
 ## Note
 
 - `KIBER_CONNECTION_REFUSED` viene anche gestito internamente con dialog dedicata.
-- Le dialog radio (Wi-Fi/Bluetooth spenti) vengono triggerate dal manager quando host app e foreground.
+- Le dialog radio (Wi-Fi/Bluetooth spenti) vengono triggerate dal manager quando host app è foreground.

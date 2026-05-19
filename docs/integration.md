@@ -8,7 +8,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.kiber:kiberwifi-sdk:0.2.5")
+    implementation("com.kiber:kiberwifi-sdk:0.2.7")
 }
 ```
 
@@ -16,6 +16,7 @@ dependencies {
 
 ### In `onCreate`
 - chiama `ensurePermissions(this)`
+- opzionale: imposta lingua SDK con `setLanguage("en" | "it" | "de" | "fr" | "es" | "ru")`
 - inizializza il target device name (`XXXXX`)
 - avvia il manager con `startManaged(...)` o `start(activity, deviceName, autoConnect)`
 
@@ -29,6 +30,7 @@ Esempio:
 override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     com.kiber.kiberwifi.KiberWifiServiceManager.ensurePermissions(this)
+    com.kiber.kiberwifi.KiberWifiServiceManager.setLanguage("en")
     com.kiber.kiberwifi.KiberWifiServiceManager.start(this, "NT3XC", false)
 }
 
@@ -52,24 +54,12 @@ com.kiber.kiberwifi.KiberWifiServiceManager.enableConnect(this)             // C
 com.kiber.kiberwifi.KiberWifiServiceManager.disableConnect(applicationContext) // Disconnect + stop connect intent
 ```
 
-Semantica consigliata:
-- `start(activity, serial, false)`: avvia manager + discovery BLE, ma non connette Wi-Fi automaticamente.
-- `enableConnect(...)`: abilita la connessione Wi-Fi quando il target viene trovato.
-- `disableConnect(...)`: forza disconnessione e mantiene il manager in stato di discovery/monitoraggio.
-
 ## 4. Cambio target device
 
-Quando cambia seriale/device name usa direttamente:
-
-```kotlin
-com.kiber.kiberwifi.KiberWifiServiceManager.changeDeviceSerial(context, "NT3XC")
-```
-
-Esempio Java:
-
-```java
-KiberWifiServiceManager.changeDeviceSerial(getApplicationContext(), "NT3XC");
-```
+Quando cambia seriale/device name:
+1. `clearLearnedBleFilters(context)`
+2. `stop(context)`
+3. `start(...)` con nuovo target
 
 ## 5. Shutdown app
 
@@ -77,49 +67,7 @@ In uscita app puoi chiamare:
 
 ```kotlin
 com.kiber.kiberwifi.KiberWifiServiceManager.stop(applicationContext)
+com.kiber.kiberwifi.KiberWifiServiceManager.resetSessionState()
 ```
 
 (Se vuoi mantenere comportamento background anche ad app chiusa, non chiamare `stop`.)
-
-## 6. Callback eventi (opzionale)
-
-Registra una callback per ricevere stato e messaggi runtime:
-
-```kotlin
-class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceManager.KiberEventListener {
-    override fun onResume() {
-        super.onResume()
-        com.kiber.kiberwifi.KiberWifiServiceManager.setListener(this)
-    }
-
-    override fun onPause() {
-        com.kiber.kiberwifi.KiberWifiServiceManager.setListener(null)
-        super.onPause()
-    }
-
-    override fun onKiberEvent(
-        status: com.kiber.kiberwifi.KiberWifiServiceManager.KiberStatus,
-        message: String
-    ) {
-        // aggiorna UI/stato host app
-    }
-}
-```
-
-Eventi disponibili e mapping consigliato: vedi [events.md](events.md).
-
-## 7. Uso di `isTargetPresent()` per UI pulsanti
-
-`isTargetPresent()` espone se il target BLE e stato rilevato di recente.
-
-Esempio Java minimale:
-
-```java
-boolean canConnect = KiberWifiServiceManager.isTargetPresent();
-connectButton.setEnabled(canConnect);
-```
-
-Pattern tipico:
-- disabilita "Connetti" quando `false`
-- abilita "Connetti" quando `true`
-- in callback `KIBER_TARGET_PRESENT` / `KIBER_TARGET_ABSENT` aggiorna lo stato UI

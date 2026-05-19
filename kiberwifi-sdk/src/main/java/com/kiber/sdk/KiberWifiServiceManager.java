@@ -38,6 +38,9 @@ import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -52,6 +55,7 @@ import androidx.core.content.pm.PackageInfoCompat;
 import java.util.Locale;
 import java.util.LinkedHashSet;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import android.media.AudioAttributes;
@@ -60,6 +64,8 @@ import android.media.ToneGenerator;
 import java.io.IOException;
 
 public class KiberWifiServiceManager extends Service {
+    public static final int START_RESULT_OK = 0;
+    public static final int START_RESULT_SUSPENDED = 1;
     public enum KiberStatus {
         IDLING,
         SCANNING,
@@ -107,12 +113,16 @@ public class KiberWifiServiceManager extends Service {
     private static final String PREF_LEARNED_DEVICE_ADDRESSES = "pref_learned_device_addresses";
     private static final String PREF_CONNECTION_REFUSED_PENDING = "pref_connection_refused_pending";
     private static final String KIBERSCOPE_PASSPHRASE = "12345678";
+    private static final int MAX_MANUAL_RETRY_PER_SESSION = 3;
+    private static final Set<String> SUPPORTED_LANGUAGES =
+            new LinkedHashSet<>(Arrays.asList("en", "it", "de", "fr", "es", "ru"));
     
     private static final long AUTOCONNECT_RETRY_DELAY_MS = 3_000L;
     private static final long FAST_START_WINDOW_MS = 10_000L;
     private static final long FAST_START_RETRY_DELAY_MS = 1_000L;
     private static final long BLE_SCAN_WINDOW_MS = 5_000L;
     private static final long DEVICE_PRESENT_TTL_MS = 10_000L;
+    private static final long CONNECTED_STABILIZATION_MS = 500L;
     private static final long MIN_SCAN_START_INTERVAL_MS = 4_000L;
     private static final long SCAN_FAILED_BACKOFF_MS = 10_000L;
     private static volatile KiberStatus currentStatus = KiberStatus.IDLING;
@@ -121,6 +131,11 @@ public class KiberWifiServiceManager extends Service {
     private static volatile boolean serviceRunning = false;
     private static volatile boolean holdsInterAppLock = false;
     private static volatile LocalServerSocket interAppLockSocket = null;
+    private static volatile boolean connectionRefusedDialogActive = false;
+    private static volatile boolean retryBlockedForSession = false;
+    private static volatile int manualRetryCountForSession = 0;
+    private static volatile boolean suspended = false;
+    private static volatile String sdkLanguage = "en";
     private static volatile boolean hostAppInForeground = false;
     private static volatile long lastRadioDialogAtMs = 0L;
     private static volatile String lastRadioDialogType = "";
@@ -151,21 +166,31 @@ public class KiberWifiServiceManager extends Service {
     private String lastNotificationText = null;
     private boolean lastNotificationConnected = false;
     private final Runnable retryRunnable = this::attemptAutoConnectIfEnabled;
+    private Runnable pendingConnectedConfirmRunnable;
 
-    public static void start(Context context, String contentText, boolean connected) {
+    public static int start(Context context, String contentText, boolean connected) {
+        if (suspended) {
+            Log.i(TAG, "start() ignored: manager is suspended");
+            return START_RESULT_SUSPENDED;
+        }
         if (isManagedByOtherApp()) {
             Log.i(TAG, "start() ignored: another app is already managing Kiber WiFi");
-            return;
+            return START_RESULT_OK;
         }
         Intent intent = new Intent(context, KiberWifiServiceManager.class);
         intent.setAction(ACTION_START);
         intent.putExtra(EXTRA_CONTENT_TEXT, contentText);
         intent.putExtra(EXTRA_CONNECTED, connected);
         ContextCompat.startForegroundService(context, intent);
+        return START_RESULT_OK;
     }
 
-    public static void ensureRunning(Context context) {
-        start(context, buildAssociatedNotificationText(context), false);
+    public static int ensureRunning(Context context) {
+        if (suspended) {
+            Log.i(TAG, "ensureRunning() ignored: manager is suspended");
+            return START_RESULT_SUSPENDED;
+        }
+        return start(context, buildAssociatedNotificationText(context), false);
     }
 
     public static void ensurePermissions(@NonNull Activity activity) {
@@ -175,10 +200,14 @@ public class KiberWifiServiceManager extends Service {
         launchPermissionProxy(activity, PENDING_ACTION_NONE, null, false);
     }
 
-    public static void start(@NonNull Activity activity, @NonNull String deviceSerial, boolean autoConnect) {
+    public static int start(@NonNull Activity activity, @NonNull String deviceSerial, boolean autoConnect) {
+        if (suspended) {
+            Log.i(TAG, "start(activity) ignored: manager is suspended");
+            return START_RESULT_SUSPENDED;
+        }
         if (isManagedByOtherApp()) {
             Log.i(TAG, "start(activity) ignored: another app is already managing Kiber WiFi");
-            return;
+            return START_RESULT_OK;
         }
         String suffix = normalizeTargetSerial(deviceSerial);
         if (suffix == null) {
@@ -189,40 +218,51 @@ public class KiberWifiServiceManager extends Service {
                 .putString(PREF_SSID_SUFFIX, suffix)
                 .putBoolean(PREF_AUTOCONNECT_ENABLED, autoConnect)
                 .apply();
-        startManaged(
+        return startManaged(
                 activity,
                 buildAssociatedNotificationText(activity),
                 false
         );
     }
 
-    public static void startManaged(@NonNull Activity activity, @NonNull String contentText, boolean connected) {
+    public static int startManaged(@NonNull Activity activity, @NonNull String contentText, boolean connected) {
+        if (suspended) {
+            Log.i(TAG, "startManaged() ignored: manager is suspended");
+            return START_RESULT_SUSPENDED;
+        }
         if (isManagedByOtherApp()) {
             Log.i(TAG, "startManaged() ignored: another app is already managing Kiber WiFi");
-            return;
+            return START_RESULT_OK;
         }
         if (hasRuntimePermissions(activity, true) && hasBatteryOptimizationExemption(activity)) {
-            start(activity.getApplicationContext(), contentText, connected);
-            return;
+            return start(activity.getApplicationContext(), contentText, connected);
         }
         launchPermissionProxy(activity, PENDING_ACTION_START, contentText, connected);
+        return START_RESULT_OK;
     }
 
     public static void stop(Context context) {
+        Log.i(TAG, "stop() requested: serviceRunning=" + serviceRunning
+                + ", holdsInterAppLock=" + holdsInterAppLock
+                + ", suspended=" + suspended
+                + ", retryBlocked=" + retryBlockedForSession);
         if (isManagedByOtherApp()) {
             Log.i(TAG, "stop() ignored: another app is managing Kiber WiFi");
             return;
         }
         if (!serviceRunning && !holdsInterAppLock) {
+            Log.i(TAG, "stop() no-op: manager already idle");
             return;
         }
         Intent intent = new Intent(context, KiberWifiServiceManager.class);
         intent.setAction(ACTION_STOP);
         try {
+            Log.i(TAG, "stop() dispatching ACTION_STOP via startService");
             context.startService(intent);
         } catch (Exception e) {
             Log.w(TAG, "stop(): startService(ACTION_STOP) failed, trying stopService fallback", e);
             try {
+                Log.i(TAG, "stop() dispatching stopService fallback");
                 context.stopService(new Intent(context, KiberWifiServiceManager.class));
             } catch (Exception suppressed) {
                 Log.w(TAG, "stop(): stopService fallback failed", suppressed);
@@ -234,6 +274,10 @@ public class KiberWifiServiceManager extends Service {
     }
 
     public static void enableConnect(@NonNull Context context) {
+        if (suspended) {
+            Log.i(TAG, "enableConnect() ignored: manager is suspended");
+            return;
+        }
         if (isManagedByOtherApp()) {
             Log.i(TAG, "enableConnect() ignored: another app is already managing Kiber WiFi");
             return;
@@ -252,6 +296,10 @@ public class KiberWifiServiceManager extends Service {
     }
 
     public static void enableConnect(@NonNull Activity activity) {
+        if (suspended) {
+            Log.i(TAG, "enableConnect(activity) ignored: manager is suspended");
+            return;
+        }
         if (isManagedByOtherApp()) {
             Log.i(TAG, "enableConnect(activity) ignored: another app is already managing Kiber WiFi");
             return;
@@ -318,6 +366,23 @@ public class KiberWifiServiceManager extends Service {
         }
     }
 
+    public static void setLanguage(@Nullable String languageCode) {
+        String normalized = languageCode == null ? "en" : languageCode.trim().toLowerCase(Locale.ROOT);
+        if (!SUPPORTED_LANGUAGES.contains(normalized)) {
+            normalized = "en";
+        }
+        sdkLanguage = normalized;
+    }
+
+    public static void resetSessionState() {
+        Log.i(TAG, "resetSessionState() requested");
+        suspended = false;
+        retryBlockedForSession = false;
+        manualRetryCountForSession = 0;
+        connectionRefusedDialogActive = false;
+        currentStatus = KiberStatus.IDLING;
+    }
+
     @NonNull
     public static KiberStatus getStatus() {
         return currentStatus;
@@ -333,35 +398,48 @@ public class KiberWifiServiceManager extends Service {
             return;
         }
         prefs.edit().putBoolean(PREF_CONNECTION_REFUSED_PENDING, false).apply();
-        Intent intent = new Intent(context, KiberConnectionRefusedDialogActivity.class);
+        if (manualRetryCountForSession >= MAX_MANUAL_RETRY_PER_SESSION) {
+            retryBlockedForSession = true;
+        }
+        connectionRefusedDialogActive = true;
+        Intent intent = new Intent(
+                context,
+                retryBlockedForSession ? KiberTooManyRetriesDialogActivity.class : KiberConnectionRefusedDialogActivity.class
+        );
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         context.startActivity(intent);
     }
 
     private static synchronized boolean acquireInterAppLock() {
         if (holdsInterAppLock && interAppLockSocket != null) {
+            Log.d(TAG, "acquireInterAppLock: already held by this process");
             return true;
         }
         try {
             interAppLockSocket = new LocalServerSocket(INTER_APP_LOCK_NAME);
             holdsInterAppLock = true;
+            Log.i(TAG, "acquireInterAppLock: acquired");
             return true;
         } catch (IOException e) {
             holdsInterAppLock = false;
             interAppLockSocket = null;
+            Log.w(TAG, "acquireInterAppLock: failed (owned by another process?)");
             return false;
         }
     }
 
     private static synchronized boolean isManagedByOtherApp() {
         if (serviceRunning || holdsInterAppLock) {
+            Log.d(TAG, "isManagedByOtherApp=false (local service/lock active)");
             return false;
         }
         LocalServerSocket probe = null;
         try {
             probe = new LocalServerSocket(INTER_APP_LOCK_NAME);
+            Log.d(TAG, "isManagedByOtherApp=false (lock free)");
             return false;
         } catch (IOException e) {
+            Log.i(TAG, "isManagedByOtherApp=true (lock already held externally)");
             return true;
         } finally {
             if (probe != null) {
@@ -374,6 +452,7 @@ public class KiberWifiServiceManager extends Service {
     }
 
     private static synchronized void releaseInterAppLock() {
+        Log.i(TAG, "releaseInterAppLock() called: hadSocket=" + (interAppLockSocket != null));
         if (interAppLockSocket != null) {
             try {
                 interAppLockSocket.close();
@@ -383,6 +462,170 @@ public class KiberWifiServiceManager extends Service {
         }
         interAppLockSocket = null;
         holdsInterAppLock = false;
+    }
+
+    private static void centerDialogMessage(@Nullable AlertDialog dialog) {
+        if (dialog == null) {
+            return;
+        }
+        TextView messageView = dialog.findViewById(android.R.id.message);
+        if (messageView == null) {
+            return;
+        }
+        messageView.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+        messageView.setGravity(Gravity.CENTER_HORIZONTAL);
+    }
+
+    private static String tr(@NonNull String key) {
+        String lang = sdkLanguage;
+        switch (key) {
+            case "bg_loc_title":
+                switch (lang) {
+                    case "it": return "Permesso richiesto";
+                    case "de": return "Berechtigung erforderlich";
+                    case "fr": return "Autorisation requise";
+                    case "es": return "Permiso requerido";
+                    case "ru": return "Требуется разрешение";
+                    default: return "Permission required";
+                }
+            case "bg_loc_msg":
+                switch (lang) {
+                    case "it": return "Per usare l'autoconnect in background, consenti la localizzazione sempre attiva nelle impostazioni dell'app.";
+                    case "de": return "Um die automatische Verbindung im Hintergrund zu verwenden, erlauben Sie in den App-Einstellungen den Standortzugriff immer.";
+                    case "fr": return "Pour utiliser la connexion automatique en arrière-plan, autorisez la localisation en permanence dans les paramètres de l'application.";
+                    case "es": return "Para usar la conexión automática en segundo plano, permite la ubicación siempre activa en la configuración de la aplicación.";
+                    case "ru": return "Чтобы использовать автоподключение в фоне, разрешите постоянный доступ к геопозиции в настройках приложения.";
+                    default: return "To use background autoconnect, allow always-on location in app settings.";
+                }
+            case "bg_loc_open":
+                switch (lang) {
+                    case "it": return "Apri impostazioni app";
+                    case "de": return "App-Einstellungen öffnen";
+                    case "fr": return "Ouvrir les paramètres de l'application";
+                    case "es": return "Abrir ajustes de la aplicación";
+                    case "ru": return "Открыть настройки приложения";
+                    default: return "Open app settings";
+                }
+            case "battery_title":
+                switch (lang) {
+                    case "it": return "Ottimizzazione batteria";
+                    case "de": return "Akkuoptimierung";
+                    case "fr": return "Optimisation de la batterie";
+                    case "es": return "Optimización de batería";
+                    case "ru": return "Оптимизация батареи";
+                    default: return "Battery optimization";
+                }
+            case "battery_msg":
+                switch (lang) {
+                    case "it": return "Per migliorare la reattività in background, disattiva l'ottimizzazione batteria per questa app.";
+                    case "de": return "Für bessere Reaktionsfähigkeit im Hintergrund deaktivieren Sie die Akkuoptimierung für diese App.";
+                    case "fr": return "Pour une meilleure réactivité en arrière-plan, désactivez l'optimisation de la batterie pour cette application.";
+                    case "es": return "Para una mejor respuesta en segundo plano, desactiva la optimización de batería para esta aplicación.";
+                    case "ru": return "Для лучшей работы в фоне отключите оптимизацию батареи для этого приложения.";
+                    default: return "For better background responsiveness, disable battery optimization for this app.";
+                }
+            case "battery_open":
+                switch (lang) {
+                    case "it": return "Disattiva ottimizzazione";
+                    case "de": return "Optimierung deaktivieren";
+                    case "fr": return "Désactiver l'optimisation";
+                    case "es": return "Desactivar optimización";
+                    case "ru": return "Отключить оптимизацию";
+                    default: return "Disable optimization";
+                }
+            case "required_permissions_toast":
+                switch (lang) {
+                    case "it": return "Permessi necessari per il funzionamento";
+                    case "de": return "Für den Betrieb sind Berechtigungen erforderlich";
+                    case "fr": return "Autorisations requises pour le fonctionnement";
+                    case "es": return "Se requieren permisos para el funcionamiento";
+                    case "ru": return "Для работы требуются разрешения";
+                    default: return "Required permissions are needed for proper operation";
+                }
+            case "connection_refused_title":
+                switch (lang) {
+                    case "it": return "Connessione KIBERSCOPE rifiutata";
+                    case "de": return "KIBERSCOPE-Verbindung abgelehnt";
+                    case "fr": return "Connexion KIBERSCOPE refusée";
+                    case "es": return "Conexión KIBERSCOPE rechazada";
+                    case "ru": return "Подключение KIBERSCOPE отклонено";
+                    default: return "KIBERSCOPE connection refused";
+                }
+            case "connection_refused_msg":
+                switch (lang) {
+                    case "it": return "Connessione rifiutata. Verifica che il dispositivo non sia già ingaggiato da un altro mobile.";
+                    case "de": return "Verbindung abgelehnt. Prüfen Sie, ob das Gerät bereits von einem anderen Mobilgerät gebunden ist.";
+                    case "fr": return "Connexion refusée. Vérifiez que l'appareil n'est pas déjà engagé par un autre mobile.";
+                    case "es": return "Conexión rechazada. Comprueba que el dispositivo no esté ya enganchado por otro móvil.";
+                    case "ru": return "Подключение отклонено. Проверьте, что устройство уже занято другим мобильным устройством.";
+                    default: return "Connection refused. Check whether the device is already engaged by another mobile.";
+                }
+            case "retry":
+                switch (lang) {
+                    case "it": return "Riprova";
+                    case "de": return "Erneut versuchen";
+                    case "fr": return "Réessayer";
+                    case "es": return "Reintentar";
+                    case "ru": return "Повторить";
+                    default: return "Retry";
+                }
+            case "too_many_title":
+                switch (lang) {
+                    case "it": return "Troppi tentativi di connessione falliti";
+                    case "de": return "Zu viele fehlgeschlagene Verbindungsversuche";
+                    case "fr": return "Trop de tentatives de connexion échouées";
+                    case "es": return "Demasiados intentos de conexión fallidos";
+                    case "ru": return "Слишком много неудачных попыток подключения";
+                    default: return "Too many failed connection attempts";
+                }
+            case "too_many_msg":
+                switch (lang) {
+                    case "it": return "La connessione wireless a un dispositivo Kiber già ingaggiato è stata tentata troppe volte. I tentativi automatici sono ora disabilitati per questa sessione. Riavvia l'app se vuoi riprovare e assicurati che il dispositivo non sia già ingaggiato da un altro mobile.";
+                    case "de": return "Die drahtlose Verbindung zu einem bereits gebundenen Kiber-Gerät wurde zu oft versucht. Automatische Wiederholungen sind für diese Sitzung nun deaktiviert. Starten Sie die App neu, wenn Sie es erneut versuchen möchten, und stellen Sie sicher, dass das Gerät nicht bereits von einem anderen Mobilgerät gebunden ist.";
+                    case "fr": return "La connexion sans fil à un appareil Kiber déjà engagé a été tentée trop de fois. Les nouvelles tentatives automatiques sont désormais désactivées pour cette session. Redémarrez l'application si vous voulez réessayer et assurez-vous que l'appareil n'est pas déjà engagé par un autre mobile.";
+                    case "es": return "La conexión inalámbrica a un dispositivo Kiber ya enganchado se intentó demasiadas veces. Los reintentos automáticos ahora están deshabilitados para esta sesión. Reinicia la aplicación si quieres volver a intentarlo y asegúrate de que el dispositivo no esté ya enganchado por otro móvil.";
+                    case "ru": return "Беспроводное подключение к уже занятому устройству Kiber выполнялось слишком много раз. Автоматические повторные попытки отключены для этой сессии. Перезапустите приложение, если хотите попробовать снова, и убедитесь, что устройство не занято другим мобильным устройством.";
+                    default: return "Wireless connection to an engaged Kiber device was attempted too many times. Automatic retries are now disabled for this session. Restart the app if you want to try again, and make sure the device is not already engaged by another mobile.";
+                }
+            case "ok_got_it":
+                switch (lang) {
+                    case "it": return "Ok, ho capito!";
+                    case "de": return "OK, verstanden!";
+                    case "fr": return "OK, compris !";
+                    case "es": return "¡OK, entendido!";
+                    case "ru": return "Ок, понятно!";
+                    default: return "Ok, got it!";
+                }
+            case "wifi_off_msg":
+                switch (lang) {
+                    case "it": return "Wi-Fi spento. Attivalo per continuare.";
+                    case "de": return "WLAN ist ausgeschaltet. Aktivieren Sie es, um fortzufahren.";
+                    case "fr": return "Le Wi-Fi est désactivé. Activez-le pour continuer.";
+                    case "es": return "El Wi-Fi está desactivado. Actívalo para continuar.";
+                    case "ru": return "Wi-Fi отключен. Включите его, чтобы продолжить.";
+                    default: return "Wi-Fi is off. Enable it to continue.";
+                }
+            case "bt_off_msg":
+                switch (lang) {
+                    case "it": return "Bluetooth spento. Attivalo per continuare.";
+                    case "de": return "Bluetooth ist ausgeschaltet. Aktivieren Sie es, um fortzufahren.";
+                    case "fr": return "Le Bluetooth est désactivé. Activez-le pour continuer.";
+                    case "es": return "Bluetooth está desactivado. Actívalo para continuar.";
+                    case "ru": return "Bluetooth отключен. Включите его, чтобы продолжить.";
+                    default: return "Bluetooth is off. Enable it to continue.";
+                }
+            case "open_settings":
+                switch (lang) {
+                    case "it": return "Apri impostazioni";
+                    case "de": return "Einstellungen öffnen";
+                    case "fr": return "Ouvrir les paramètres";
+                    case "es": return "Abrir ajustes";
+                    case "ru": return "Открыть настройки";
+                    default: return "Open settings";
+                }
+            default:
+                return key;
+        }
     }
 
     private static boolean hasRuntimePermissions(@NonNull Context context, boolean includeBackgroundLocation) {
@@ -554,6 +797,9 @@ public class KiberWifiServiceManager extends Service {
                 + " build=" + getAppVersionTag());
         String action = intent != null ? intent.getAction() : null;
         if (ACTION_STOP.equals(action)) {
+            Log.i(TAG, "ACTION_STOP received: connectedState=" + connectedState
+                    + ", isBleScanning=" + isBleScanning
+                    + ", connectionInProgress=" + connectionInProgress);
             if (connectedState) {
                 BeepHelper.playBeep(this, false);
             }
@@ -561,6 +807,7 @@ public class KiberWifiServiceManager extends Service {
             releaseBleScanWakeLock();
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
+            Log.i(TAG, "ACTION_STOP handled: stopSelf issued");
             return START_NOT_STICKY;
         }
         if (ACTION_DISABLE_CONNECT.equals(action)) {
@@ -602,7 +849,9 @@ public class KiberWifiServiceManager extends Service {
 
     @Override
     public void onDestroy() {
+        Log.i(TAG, "Service onDestroy: serviceRunning->false");
         serviceRunning = false;
+        cancelPendingConnectedConfirmation();
         cancelRetry();
         stopBleScan();
         releaseBleScanWakeLock();
@@ -776,21 +1025,36 @@ public class KiberWifiServiceManager extends Service {
         startActivity(intent);
     }
 
-    private boolean isConnectedToKiberscopeApNow() {
+    private String getCurrentConnectedSsidOrNull() {
         try {
             if (wifiManager == null || wifiManager.getConnectionInfo() == null) {
-                return false;
+                return null;
             }
             @SuppressLint("MissingPermission")
             String currentSsidRaw = wifiManager.getConnectionInfo().getSSID();
             if (currentSsidRaw == null) {
-                return false;
+                return null;
             }
-            String currentSsid = currentSsidRaw.replace("\"", "");
-            return currentSsid.startsWith(SSID_PREFIX);
+            return currentSsidRaw.replace("\"", "");
         } catch (Exception e) {
             Log.w(TAG, "Service failed to read current SSID for state sync", e);
+            return null;
+        }
+    }
+
+    private boolean isConnectedToKiberscopeApNow() {
+        String targetSsid = getTargetSsidOrNull();
+        String currentSsid = getCurrentConnectedSsidOrNull();
+        if (targetSsid == null || currentSsid == null) {
             return false;
+        }
+        return targetSsid.equals(currentSsid);
+    }
+
+    private void cancelPendingConnectedConfirmation() {
+        if (pendingConnectedConfirmRunnable != null) {
+            handler.removeCallbacks(pendingConnectedConfirmRunnable);
+            pendingConnectedConfirmRunnable = null;
         }
     }
 
@@ -818,7 +1082,16 @@ public class KiberWifiServiceManager extends Service {
     }
 
     private void attemptAutoConnectIfEnabled() {
+        if (retryBlockedForSession) {
+            Log.i(TAG, "Service connect attempt blocked: retry limit reached for this app session");
+            return;
+        }
         if (connectedState || connectionInProgress) {
+            return;
+        }
+        if (connectionRefusedDialogActive) {
+            Log.d(TAG, "Service connect attempt suspended: refusal dialog active");
+            scheduleRetry();
             return;
         }
         Log.d(TAG, "Service autoconnect attempt started");
@@ -1168,6 +1441,15 @@ public class KiberWifiServiceManager extends Service {
     }
 
     private void requestNetworkInBackground(String targetSsid) {
+        if (retryBlockedForSession) {
+            Log.i(TAG, "Service requestNetwork skipped: retry limit reached for this app session");
+            return;
+        }
+        if (connectionRefusedDialogActive) {
+            Log.d(TAG, "Service requestNetwork skipped: refusal dialog active");
+            scheduleRetry();
+            return;
+        }
         if (connectionInProgress || connectivityManager == null || targetSsid == null) {
             return;
         }
@@ -1193,21 +1475,47 @@ public class KiberWifiServiceManager extends Service {
             @Override
             public void onAvailable(@NonNull Network network) {
                 super.onAvailable(network);
-                getPrefs().edit().putBoolean(PREF_CONNECTION_REFUSED_PENDING, false).apply();
-                connectedState = true;
-                connectionInProgress = false;
-                cancelRetry();
-                
-                BeepHelper.playBeep(KiberWifiServiceManager.this, true);
-                
-                Log.d(TAG, "Service network available: " + network);
-                updateNotification(buildConnectedNotificationText(KiberWifiServiceManager.this), true);
-                emitStatus(KiberStatus.CONNECTED, "KIBER_CONNECTED");
+                cancelPendingConnectedConfirmation();
+                String currentSsid = getCurrentConnectedSsidOrNull();
+                if (currentSsid == null || !targetSsid.equals(currentSsid)) {
+                    Log.w(TAG, "Service network available but SSID mismatch. expected="
+                            + targetSsid + ", current=" + currentSsid);
+                    connectedState = false;
+                    connectionInProgress = false;
+                    clearNetworkCallback();
+                    ensureRadiosReadyAndPromptIfNeeded();
+                    scheduleRetry();
+                    return;
+                }
+                pendingConnectedConfirmRunnable = () -> {
+                    String confirmedSsid = getCurrentConnectedSsidOrNull();
+                    if (confirmedSsid == null || !targetSsid.equals(confirmedSsid)) {
+                        Log.d(TAG, "Service connected confirmation skipped: SSID changed before stabilization. expected="
+                                + targetSsid + ", current=" + confirmedSsid);
+                        connectedState = false;
+                        connectionInProgress = false;
+                        scheduleRetry();
+                        return;
+                    }
+                    getPrefs().edit().putBoolean(PREF_CONNECTION_REFUSED_PENDING, false).apply();
+                    manualRetryCountForSession = 0;
+                    retryBlockedForSession = false;
+                    connectedState = true;
+                    connectionInProgress = false;
+                    cancelRetry();
+                    BeepHelper.playBeep(KiberWifiServiceManager.this, true);
+                    Log.d(TAG, "Service network available and stabilized: " + network);
+                    updateNotification(buildConnectedNotificationText(KiberWifiServiceManager.this), true);
+                    emitStatus(KiberStatus.CONNECTED, "KIBER_CONNECTED");
+                    pendingConnectedConfirmRunnable = null;
+                };
+                handler.postDelayed(pendingConnectedConfirmRunnable, CONNECTED_STABILIZATION_MS);
             }
 
             @Override
             public void onLost(@NonNull Network network) {
                 super.onLost(network);
+                cancelPendingConnectedConfirmation();
                 if (connectedState) {
                     BeepHelper.playBeep(KiberWifiServiceManager.this, false);
                 }
@@ -1224,6 +1532,7 @@ public class KiberWifiServiceManager extends Service {
             @Override
             public void onUnavailable() {
                 super.onUnavailable();
+                cancelPendingConnectedConfirmation();
                 connectedState = false;
                 connectionInProgress = false;
                 Log.d(TAG, "Service network unavailable");
@@ -1251,7 +1560,9 @@ public class KiberWifiServiceManager extends Service {
         stopBleScan();
         releaseBleScanWakeLock();
         updateNotification(getString(R.string.foreground_service_text_connection_refused), false);
-        scheduleRetry();
+        if (!retryBlockedForSession) {
+            scheduleRetry();
+        }
     }
 
     private void scheduleRetry() {
@@ -1480,18 +1791,20 @@ public class KiberWifiServiceManager extends Service {
             return;
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.background_location_dialog_title)
-                    .setMessage(R.string.background_location_dialog_message)
-                    .setPositiveButton(R.string.background_location_dialog_open_settings, (dialog, which) -> {
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle(tr("bg_loc_title"))
+                    .setMessage(tr("bg_loc_msg"))
+                    .setPositiveButton(tr("bg_loc_open"), (d, which) -> {
                         waitingBackgroundSettings = true;
                         Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
                         intent.setData(Uri.fromParts("package", getPackageName(), null));
                         startActivity(intent);
                     })
-                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> finish())
-                    .setOnCancelListener(dialog -> finish())
-                    .show();
+                    .setNegativeButton(android.R.string.cancel, (d, which) -> finish())
+                    .setOnCancelListener(d -> finish())
+                    .create();
+            dialog.show();
+            centerDialogMessage(dialog);
             return;
         }
         ActivityCompat.requestPermissions(this,
@@ -1511,10 +1824,10 @@ public class KiberWifiServiceManager extends Service {
             completePendingAction();
             return;
         }
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.battery_optimization_dialog_title)
-                .setMessage(R.string.battery_optimization_dialog_message)
-                .setPositiveButton(R.string.battery_optimization_dialog_open_settings, (dialog, which) -> {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(tr("battery_title"))
+                .setMessage(tr("battery_msg"))
+                .setPositiveButton(tr("battery_open"), (d, which) -> {
                     waitingBatterySettings = true;
                     Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                     intent.setData(Uri.parse("package:" + getPackageName()));
@@ -1525,9 +1838,11 @@ public class KiberWifiServiceManager extends Service {
                         completePendingAction();
                     }
                 })
-                .setNegativeButton(android.R.string.cancel, (dialog, which) -> completePendingAction())
-                .setOnCancelListener(dialog -> completePendingAction())
-                .show();
+                .setNegativeButton(android.R.string.cancel, (d, which) -> completePendingAction())
+                .setOnCancelListener(d -> completePendingAction())
+                .create();
+        dialog.show();
+        centerDialogMessage(dialog);
     }
 
     private boolean hasLocationPermission() {
@@ -1541,7 +1856,7 @@ public class KiberWifiServiceManager extends Service {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQ_CORE) {
             if (!allGranted(grantResults)) {
-                Toast.makeText(this, "Permessi necessari per il funzionamento", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, tr("required_permissions_toast"), Toast.LENGTH_LONG).show();
                 finish();
                 return;
             }
@@ -1583,12 +1898,73 @@ public class KiberWifiServiceManager extends Service {
         @Override
         protected void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
-            new AlertDialog.Builder(this)
-                    .setTitle(R.string.connection_refused_notification_title)
-                    .setMessage(R.string.connection_refused_notification_body)
-                    .setPositiveButton(android.R.string.ok, (dialog, which) -> finish())
-                    .setOnCancelListener(dialog -> finish())
-                    .show();
+            connectionRefusedDialogActive = true;
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle(tr("connection_refused_title"))
+                    .setMessage(tr("connection_refused_msg"))
+                    .setPositiveButton(tr("retry"), (d, which) -> {
+                        connectionRefusedDialogActive = false;
+                        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                                .edit()
+                                .putBoolean(PREF_CONNECTION_REFUSED_PENDING, false)
+                                .apply();
+                        manualRetryCountForSession++;
+                        KiberWifiServiceManager.enableConnect(getApplicationContext());
+                        finish();
+                    })
+                    .setOnCancelListener(d -> {
+                        connectionRefusedDialogActive = false;
+                        finish();
+                    })
+                    .create();
+            dialog.show();
+            centerDialogMessage(dialog);
+        }
+
+        @Override
+        protected void onDestroy() {
+            connectionRefusedDialogActive = false;
+            super.onDestroy();
+        }
+    }
+
+    public static class KiberTooManyRetriesDialogActivity extends AppCompatActivity {
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            connectionRefusedDialogActive = true;
+            retryBlockedForSession = true;
+            suspended = true;
+            // Stop foreground service immediately when retry limit is reached,
+            // so the persistent notification icon disappears at once.
+            KiberWifiServiceManager.stop(getApplicationContext());
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle(tr("too_many_title"))
+                    .setMessage(tr("too_many_msg"))
+                    .setPositiveButton(tr("ok_got_it"), (d, which) -> {
+                        connectionRefusedDialogActive = false;
+                        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                                .edit()
+                                .putBoolean(PREF_CONNECTION_REFUSED_PENDING, false)
+                                .putBoolean(PREF_AUTOCONNECT_ENABLED, false)
+                                .putBoolean(PREF_CONNECT_ENABLED, false)
+                                .apply();
+                        KiberWifiServiceManager.stop(getApplicationContext());
+                        finish();
+                    })
+                    .setOnCancelListener(d -> {
+                        connectionRefusedDialogActive = false;
+                        finish();
+                    })
+                    .create();
+            dialog.show();
+            centerDialogMessage(dialog);
+        }
+
+        @Override
+        protected void onDestroy() {
+            connectionRefusedDialogActive = false;
+            super.onDestroy();
         }
     }
 
@@ -1600,21 +1976,23 @@ public class KiberWifiServiceManager extends Service {
             boolean wifi = RADIO_TYPE_WIFI.equals(radioType);
             int title = wifi ? R.string.status_warning_wifi_off : R.string.status_warning_bluetooth_off;
             String message = wifi
-                    ? "Wi-Fi spento. Attivalo per continuare."
-                    : "Bluetooth spento. Attivalo per continuare.";
-            new AlertDialog.Builder(this)
+                    ? tr("wifi_off_msg")
+                    : tr("bt_off_msg");
+            AlertDialog dialog = new AlertDialog.Builder(this)
                     .setTitle(title)
                     .setMessage(message)
-                    .setPositiveButton("Apri impostazioni", (dialog, which) -> {
+                    .setPositiveButton(tr("open_settings"), (d, which) -> {
                         Intent intent = wifi
                                 ? new Intent(Settings.ACTION_WIFI_SETTINGS)
                                 : new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
                         startActivity(intent);
                         finish();
                     })
-                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> finish())
-                    .setOnCancelListener(dialog -> finish())
-                    .show();
+                    .setNegativeButton(android.R.string.cancel, (d, which) -> finish())
+                    .setOnCancelListener(d -> finish())
+                    .create();
+            dialog.show();
+            centerDialogMessage(dialog);
         }
     }
 
@@ -1686,4 +2064,6 @@ public class KiberWifiServiceManager extends Service {
         }
     }
 }
+
+
 

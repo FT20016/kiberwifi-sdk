@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.kiber"
-version = "0.2.5"
+version = "0.2.7"
 
 android {
     namespace = "com.kiber.sdk"
