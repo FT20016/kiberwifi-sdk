@@ -36,5 +36,5 @@ dependencies {
     implementation(libs.activity)
     implementation(libs.constraintlayout)
 
-    implementation("com.kiber:kiberwifi-sdk:0.2.7")
+    implementation("com.kiber:kiberwifi-sdk:0.2.9")
 }

@@ -30,10 +30,6 @@ public final class KiberWifiServiceManager {
         return com.kiber.sdk.KiberWifiServiceManager.ensureRunning(context);
     }
 
-    public static void ensurePermissions(@NonNull Activity activity) {
-        com.kiber.sdk.KiberWifiServiceManager.ensurePermissions(activity);
-    }
-
     public static void setLanguage(@NonNull String languageCode) {
         com.kiber.sdk.KiberWifiServiceManager.setLanguage(languageCode);
     }
@@ -42,24 +38,12 @@ public final class KiberWifiServiceManager {
         com.kiber.sdk.KiberWifiServiceManager.resetSessionState();
     }
 
-    public static int start(@NonNull Context context, @NonNull String contentText, boolean connected) {
-        return com.kiber.sdk.KiberWifiServiceManager.start(context, contentText, connected);
-    }
-
     public static int start(@NonNull Activity activity, @NonNull String deviceSerial, boolean autoConnect) {
         return com.kiber.sdk.KiberWifiServiceManager.start(activity, deviceSerial, autoConnect);
     }
 
-    public static int startManaged(@NonNull Activity activity, @NonNull String contentText, boolean connected) {
-        return com.kiber.sdk.KiberWifiServiceManager.startManaged(activity, contentText, connected);
-    }
-
     public static void stop(@NonNull Context context) {
         com.kiber.sdk.KiberWifiServiceManager.stop(context);
-    }
-
-    public static void enableConnect(@NonNull Context context) {
-        com.kiber.sdk.KiberWifiServiceManager.enableConnect(context);
     }
 
     public static void enableConnect(@NonNull Activity activity) {
@@ -68,10 +52,6 @@ public final class KiberWifiServiceManager {
 
     public static void disableConnect(@NonNull Context context) {
         com.kiber.sdk.KiberWifiServiceManager.disableConnect(context);
-    }
-
-    public static void clearLearnedBleFilters(@NonNull Context context) {
-        com.kiber.sdk.KiberWifiServiceManager.clearLearnedBleFilters(context);
     }
 
     public static void changeDeviceSerial(@NonNull Context context, @NonNull String deviceSerial) {

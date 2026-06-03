@@ -13,5 +13,5 @@ La sample usa `implementation(project(":kiberwifi-sdk"))` per sviluppo locale.
 Per testare il package remoto, sostituisci la dependency in `sample-host-app/build.gradle.kts` con:
 
 ```kotlin
-implementation("com.kiber:kiberwifi-sdk:0.2.7")
+implementation("com.kiber:kiberwifi-sdk:0.2.9")
 ```

@@ -8,17 +8,16 @@ repositories {
 }
 
 dependencies {
-    implementation("com.kiber:kiberwifi-sdk:0.2.7")
+    implementation("com.kiber:kiberwifi-sdk:0.2.9")
 }
 ```
 
 ## 2. Setup Activity host
 
 ### In `onCreate`
-- chiama `ensurePermissions(this)`
 - opzionale: imposta lingua SDK con `setLanguage("en" | "it" | "de" | "fr" | "es" | "ru")`
 - inizializza il target device name (`XXXXX`)
-- avvia il manager con `startManaged(...)` o `start(activity, deviceName, autoConnect)`
+- avvia il manager con `start(activity, deviceName, autoConnect)`
 
 ### In `onResume` / `onPause`
 - `setHostAppInForeground(this, true/false)`
@@ -29,7 +28,6 @@ Esempio:
 ```kotlin
 override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    com.kiber.kiberwifi.KiberWifiServiceManager.ensurePermissions(this)
     com.kiber.kiberwifi.KiberWifiServiceManager.setLanguage("en")
     com.kiber.kiberwifi.KiberWifiServiceManager.start(this, "NT3XC", false)
 }
@@ -57,9 +55,7 @@ com.kiber.kiberwifi.KiberWifiServiceManager.disableConnect(applicationContext) /
 ## 4. Cambio target device
 
 Quando cambia seriale/device name:
-1. `clearLearnedBleFilters(context)`
-2. `stop(context)`
-3. `start(...)` con nuovo target
+1. `changeDeviceSerial(context, "ABCDE")`
 
 ## 5. Shutdown app
 

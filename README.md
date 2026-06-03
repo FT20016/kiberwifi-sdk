@@ -10,7 +10,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.kiber:kiberwifi-sdk:0.2.7")
+    implementation("com.kiber:kiberwifi-sdk:0.2.9")
 }
 ```
 
@@ -22,13 +22,10 @@ class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceMa
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Richiede permessi necessari (runtime + battery optimization)
-        com.kiber.kiberwifi.KiberWifiServiceManager.ensurePermissions(this)
-
-        // Avvia manager (service) quando hai un target valido
-        com.kiber.kiberwifi.KiberWifiServiceManager.startManaged(
+        // Avvio SDK: target seriale + autoConnect
+        com.kiber.kiberwifi.KiberWifiServiceManager.start(
             this,
-            "Autoconnect attivo in background",
+            "NT3XC",
             false
         )
     }
@@ -64,11 +61,10 @@ class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceMa
 
 ## API principali
 
-- `ensurePermissions(activity)`
 - `setLanguage(languageCode)` (`en`, `it`, `de`, `fr`, `es`, `ru`)
 - `start(activity, deviceName, autoConnect)`
-- `startManaged(activity, contentText, connected)`
-- `enableConnect(activity)` / `enableConnect(context)`
+- `changeDeviceSerial(context, deviceSerial)`
+- `enableConnect(activity)`
 - `disableConnect(context)`
 - `stop(context)`
 - `resetSessionState()`
@@ -76,7 +72,6 @@ class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceMa
 - `setHostAppInForeground(context, inForeground)`
 - `getStatus()`
 - `isTargetPresent()`
-- `clearLearnedBleFilters(context)`
 
 ## Stati
 

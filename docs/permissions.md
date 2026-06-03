@@ -1,4 +1,4 @@
-# Permessi e Runtime Behavior
+﻿# Permessi e Runtime Behavior
 
 ## Permessi usati dalla libreria
 
@@ -12,16 +12,9 @@
 
 ## Come vengono richiesti
 
-La libreria gestisce internamente:
-- richiesta runtime permessi base
-- richiesta posizione sempre attiva (background location)
-- richiesta esclusione ottimizzazione batteria
+La libreria verifica i permessi necessari quando chiami `start(activity, deviceSerial, autoConnect)` e gestisce internamente il flusso runtime richiesto per BLE, Wi-Fi e foreground service.
 
-Entry-point:
-
-```kotlin
-KiberWifiServiceManager.ensurePermissions(activity)
-```
+Non esiste piu' un entry-point separato `ensurePermissions(...)`.
 
 ## Dialog runtime interne
 
@@ -31,7 +24,7 @@ KiberWifiServiceManager.ensurePermissions(activity)
 
 ## Foreground awareness
 
-Per abilitare correttamente le dialog quando l'app � visibile:
+Per abilitare correttamente le dialog quando l'app è visibile:
 
 ```kotlin
 KiberWifiServiceManager.setHostAppInForeground(this, true)  // onResume
@@ -41,3 +34,4 @@ KiberWifiServiceManager.setHostAppInForeground(this, false) // onPause
 ## Nota integrazione
 
 Verifica che il progetto host non blocchi il manifest merge delle componenti SDK (service + activity interne).
+

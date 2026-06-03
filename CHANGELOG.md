@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.9
+- Split radio prompts so BLE scanning only requires Bluetooth, while Wi-Fi is requested only when a target is found and connection starts.
+- Removed additional public API entry points and kept the SDK surface centered on `start(...)`, `changeDeviceSerial(...)`, `enableConnect(...)`, `disableConnect(...)`, `stop(...)`, and `resetSessionState()`.
+- Simplified change-device flow so learned BLE filters are handled internally by the SDK.
+- Several bug fixing and stability improvements.
+
+## 0.2.8
+- Simplified SDK startup flow: host apps are expected to use `start(activity, deviceSerial, autoConnect)` as single entrypoint.
+- Device switching path aligned to dedicated API `changeDeviceSerial(context, deviceSerial)`.
+- Internal BLE learned-filter reset on serial change handled by SDK (no host-side manual clear required).
+- Updated sample app and integration docs to reflect simplified usage.
+- Several bug fixing and stability improvements.
+
 ## 0.2.7
 - Added `resetSessionState()` API to explicitly clear session-level SDK flags (`suspended`, retry block/counter) on host app exit.
 - Connected state hardening:

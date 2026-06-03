@@ -4,11 +4,11 @@ plugins {
 }
 
 group = "com.kiber"
-version = "0.2.7"
+version = "0.2.9"
 
 android {
     namespace = "com.kiber.sdk"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 29

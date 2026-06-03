@@ -168,7 +168,7 @@ public class KiberWifiServiceManager extends Service {
     private final Runnable retryRunnable = this::attemptAutoConnectIfEnabled;
     private Runnable pendingConnectedConfirmRunnable;
 
-    public static int start(Context context, String contentText, boolean connected) {
+    private static int start(Context context, String contentText, boolean connected) {
         if (suspended) {
             Log.i(TAG, "start() ignored: manager is suspended");
             return START_RESULT_SUSPENDED;
@@ -193,13 +193,6 @@ public class KiberWifiServiceManager extends Service {
         return start(context, buildAssociatedNotificationText(context), false);
     }
 
-    public static void ensurePermissions(@NonNull Activity activity) {
-        if (hasRuntimePermissions(activity, true) && hasBatteryOptimizationExemption(activity)) {
-            return;
-        }
-        launchPermissionProxy(activity, PENDING_ACTION_NONE, null, false);
-    }
-
     public static int start(@NonNull Activity activity, @NonNull String deviceSerial, boolean autoConnect) {
         if (suspended) {
             Log.i(TAG, "start(activity) ignored: manager is suspended");
@@ -214,26 +207,21 @@ public class KiberWifiServiceManager extends Service {
             throw new IllegalArgumentException("deviceSerial must be XXXXX (or KIBERSCOPE-XXXXX)");
         }
         SharedPreferences prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit()
+        String previousSuffix = prefs.getString(PREF_SSID_SUFFIX, "");
+        boolean serialChanged = previousSuffix != null && !previousSuffix.isEmpty()
+                && !suffix.equalsIgnoreCase(previousSuffix);
+        SharedPreferences.Editor editor = prefs.edit()
                 .putString(PREF_SSID_SUFFIX, suffix)
-                .putBoolean(PREF_AUTOCONNECT_ENABLED, autoConnect)
-                .apply();
-        return startManaged(
-                activity,
-                buildAssociatedNotificationText(activity),
-                false
-        );
-    }
-
-    public static int startManaged(@NonNull Activity activity, @NonNull String contentText, boolean connected) {
-        if (suspended) {
-            Log.i(TAG, "startManaged() ignored: manager is suspended");
-            return START_RESULT_SUSPENDED;
+                .putBoolean(PREF_AUTOCONNECT_ENABLED, autoConnect);
+        if (serialChanged) {
+            editor.putString(PREF_LEARNED_DEVICE_ADDRESSES, "");
         }
-        if (isManagedByOtherApp()) {
-            Log.i(TAG, "startManaged() ignored: another app is already managing Kiber WiFi");
-            return START_RESULT_OK;
+        editor.apply();
+        if (serialChanged) {
+            Log.d(TAG, "start(activity): serial changed " + previousSuffix + " -> " + suffix + ", clearing learned BLE filters");
         }
+        String contentText = buildAssociatedNotificationText(activity);
+        boolean connected = false;
         if (hasRuntimePermissions(activity, true) && hasBatteryOptimizationExemption(activity)) {
             return start(activity.getApplicationContext(), contentText, connected);
         }
@@ -273,7 +261,7 @@ public class KiberWifiServiceManager extends Service {
         }
     }
 
-    public static void enableConnect(@NonNull Context context) {
+    private static void enableConnect(@NonNull Context context) {
         if (suspended) {
             Log.i(TAG, "enableConnect() ignored: manager is suspended");
             return;
@@ -329,7 +317,7 @@ public class KiberWifiServiceManager extends Service {
         context.startService(intent);
     }
 
-    public static void clearLearnedBleFilters(@NonNull Context context) {
+    private static void clearLearnedBleFilters(@NonNull Context context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putString(PREF_LEARNED_DEVICE_ADDRESSES, "")
@@ -994,16 +982,20 @@ public class KiberWifiServiceManager extends Service {
         return bluetoothAdapter == null || !bluetoothAdapter.isEnabled();
     }
 
-    private boolean ensureRadiosReadyAndPromptIfNeeded() {
+    private boolean ensureBluetoothReadyAndPromptIfNeeded() {
+        if (isBluetoothDisabled()) {
+            emitStatus(KiberStatus.IDLING, "KIBER_BT_OFF");
+            maybeShowRadioDialog(RADIO_TYPE_BT);
+            return false;
+        }
+        return true;
+    }
+
+    private boolean ensureWifiReadyAndPromptIfNeeded() {
         if (isWifiDisabled()) {
             updateNotification(getString(R.string.foreground_service_text_wifi_disabled), false);
             emitStatus(KiberStatus.IDLING, "KIBER_WIFI_OFF");
             maybeShowRadioDialog(RADIO_TYPE_WIFI);
-            return false;
-        }
-        if (isBluetoothDisabled()) {
-            emitStatus(KiberStatus.IDLING, "KIBER_BT_OFF");
-            maybeShowRadioDialog(RADIO_TYPE_BT);
             return false;
         }
         return true;
@@ -1096,7 +1088,7 @@ public class KiberWifiServiceManager extends Service {
         }
         Log.d(TAG, "Service autoconnect attempt started");
 
-        if (!ensureRadiosReadyAndPromptIfNeeded()) {
+        if (!ensureBluetoothReadyAndPromptIfNeeded()) {
             scheduleRetry();
             return;
         }
@@ -1138,7 +1130,7 @@ public class KiberWifiServiceManager extends Service {
             // A scan/retry cycle is already pending: collapse concurrent triggers.
             return;
         }
-        if (!ensureRadiosReadyAndPromptIfNeeded()) {
+        if (!ensureBluetoothReadyAndPromptIfNeeded()) {
             scheduleRetry();
             return;
         }
@@ -1215,7 +1207,11 @@ public class KiberWifiServiceManager extends Service {
                     targetPresentGlobal = true;
                     emitStatus(KiberStatus.IDLING, "KIBER_TARGET_PRESENT");
                     stopBleScan();
-                    if (isConnectEnabled()) {
+                    boolean connectEnabled = isConnectEnabled();
+                    boolean autoConnectEnabled = isAutoConnectEnabled();
+                    Log.d(TAG, "Service target found, connect flags: connectEnabled="
+                            + connectEnabled + ", autoConnectEnabled=" + autoConnectEnabled);
+                    if (connectEnabled || autoConnectEnabled) {
                         requestNetworkInBackground(getTargetSsidOrNull());
                     } else {
                         updateNotification(buildAssociatedNotificationText(KiberWifiServiceManager.this), false);
@@ -1453,6 +1449,10 @@ public class KiberWifiServiceManager extends Service {
         if (connectionInProgress || connectivityManager == null || targetSsid == null) {
             return;
         }
+        if (!ensureWifiReadyAndPromptIfNeeded()) {
+            scheduleRetry();
+            return;
+        }
         clearNetworkCallback();
         connectionInProgress = true;
         updateNotification(buildConnectingNotificationText(this), false);
@@ -1483,7 +1483,6 @@ public class KiberWifiServiceManager extends Service {
                     connectedState = false;
                     connectionInProgress = false;
                     clearNetworkCallback();
-                    ensureRadiosReadyAndPromptIfNeeded();
                     scheduleRetry();
                     return;
                 }
@@ -1525,7 +1524,6 @@ public class KiberWifiServiceManager extends Service {
                 clearNetworkCallback();
                 updateNotification(buildAssociatedNotificationText(KiberWifiServiceManager.this), false);
                 emitStatus(KiberStatus.DISCONNECTED, "KIBER_DISCONNECTED");
-                ensureRadiosReadyAndPromptIfNeeded();
                 scheduleRetry();
             }
 
@@ -1542,7 +1540,7 @@ public class KiberWifiServiceManager extends Service {
                 if (hostAppInForeground) {
                     maybeShowPendingConnectionRefusedDialog(getApplicationContext());
                 }
-                ensureRadiosReadyAndPromptIfNeeded();
+                ensureWifiReadyAndPromptIfNeeded();
                 clearNetworkCallback();
                 disableAutoConnectAfterFailure();
             }
