@@ -63,6 +63,8 @@ class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceMa
 }
 ```
 
+Per un esempio Java minimale con `changeDeviceSerial(...)`, vedi [docs/integration.md](docs/integration.md#4-esempio-java-minimale).
+
 ## API principali
 
 - `setLanguage(languageCode)` (`en`, `it`, `de`, `fr`, `es`, `ru`)

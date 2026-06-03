@@ -60,14 +60,78 @@ com.kiber.kiberwifi.KiberWifiServiceManager.disableConnect(applicationContext) /
 
 Il prompt Bluetooth puo' comparire durante la ricerca BLE. Il prompt Wi-Fi viene mostrato solo quando lo SDK sta per entrare in `CONNECTING`.
 
-## 4. Cambio target device
+## 4. Esempio Java minimale
+
+```java
+import android.os.Bundle;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.kiber.kiberwifi.KiberWifiServiceManager;
+
+public class MainActivity extends AppCompatActivity {
+    private static final String INITIAL_SERIAL = "NT3XC";
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        KiberWifiServiceManager.setLanguage("it");
+
+        // Starts foreground service + BLE discovery.
+        // false = discovery only; connect later with enableConnect(...).
+        KiberWifiServiceManager.start(this, INITIAL_SERIAL, false);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        KiberWifiServiceManager.setHostAppInForeground(this, true);
+    }
+
+    @Override
+    protected void onPause() {
+        KiberWifiServiceManager.setHostAppInForeground(this, false);
+        super.onPause();
+    }
+
+    public void connectToKiber() {
+        KiberWifiServiceManager.enableConnect(this);
+    }
+
+    public void disconnectFromKiber() {
+        KiberWifiServiceManager.disableConnect(getApplicationContext());
+    }
+
+    public void changeDevice(String newSerial) {
+        // Example: newSerial = "ABCDE".
+        // SDK internally disconnects current Wi-Fi if needed,
+        // updates the target, and clears learned BLE filters.
+        KiberWifiServiceManager.changeDeviceSerial(
+                getApplicationContext(),
+                newSerial
+        );
+    }
+
+    @Override
+    protected void onDestroy() {
+        KiberWifiServiceManager.stop(getApplicationContext());
+        KiberWifiServiceManager.resetSessionState();
+        super.onDestroy();
+    }
+}
+```
+
+`changeDeviceSerial(...)` sostituisce il vecchio flusso `stop + clearLearnedBleFilters + start`: la pulizia dei filtri BLE e' interna allo SDK.
+
+## 5. Cambio target device
 
 Quando cambia seriale:
 1. `changeDeviceSerial(context, "ABCDE")`
 
 Lo SDK disconnette eventuale connessione corrente, aggiorna il target e pulisce internamente i learned BLE filters. L'app host non deve chiamare funzioni di pulizia manuale.
 
-## 5. Shutdown app
+## 6. Shutdown app
 
 In uscita app puoi chiamare:
 
