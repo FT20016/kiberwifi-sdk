@@ -22,7 +22,9 @@ class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceMa
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Avvio SDK: target seriale + autoConnect
+        // Starts the foreground manager and BLE discovery for serial NT3XC.
+        // autoConnect=false means: discover the device, but do not connect
+        // to Wi-Fi until enableConnect(...) is called.
         com.kiber.kiberwifi.KiberWifiServiceManager.start(
             this,
             "NT3XC",
@@ -43,6 +45,8 @@ class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceMa
     }
 
     fun onConnectClick() {
+        // If the target was already found by BLE, Wi-Fi connection starts immediately.
+        // Otherwise the SDK connects as soon as the next BLE scan finds it.
         com.kiber.kiberwifi.KiberWifiServiceManager.enableConnect(this)
     }
 
@@ -62,7 +66,7 @@ class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceMa
 ## API principali
 
 - `setLanguage(languageCode)` (`en`, `it`, `de`, `fr`, `es`, `ru`)
-- `start(activity, deviceName, autoConnect)`
+- `start(activity, deviceSerial, autoConnect)`
 - `changeDeviceSerial(context, deviceSerial)`
 - `enableConnect(activity)`
 - `disableConnect(context)`
@@ -78,6 +82,12 @@ class MainActivity : AppCompatActivity(), com.kiber.kiberwifi.KiberWifiServiceMa
 `IDLING`, `SCANNING`, `MONITORING`, `CONNECTING`, `CONNECTED`, `DISCONNECTED`, `ERROR`
 
 Dettagli eventi e messaggi in [docs/events.md](docs/events.md).
+
+## Logica runtime
+
+`start(activity, deviceSerial, false)` avvia il servizio e la ricerca BLE del dispositivo, ma non forza subito il Wi-Fi. Il prompt Bluetooth puo' comparire durante la scansione perche' BLE richiede Bluetooth attivo.
+
+Il prompt Wi-Fi compare solo quando il dispositivo e' stato trovato e parte davvero la fase di connessione, cioe' dopo `enableConnect(activity)` oppure usando `start(activity, deviceSerial, true)`.
 
 ## Documentazione
 

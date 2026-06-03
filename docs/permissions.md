@@ -20,7 +20,7 @@ Non esiste piu' un entry-point separato `ensurePermissions(...)`.
 
 - Permission Proxy dialog flow
 - Connection refused dialog
-- Radio state dialog (Wi-Fi/Bluetooth off)
+- Radio state dialog: Bluetooth during BLE scan, Wi-Fi only when connection starts
 
 ## Foreground awareness
 

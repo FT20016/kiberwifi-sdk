@@ -2,6 +2,8 @@
 
 Questo modulo mostra l'integrazione minima con `KiberWifiServiceManager`.
 
+La sample usa `start(activity, deviceSerial, false)`: il servizio parte e cerca il dispositivo via BLE, ma la connessione Wi-Fi viene richiesta solo quando premi Connect (`enableConnect(activity)`).
+
 ## Run
 
 - seleziona modulo `sample-host-app`

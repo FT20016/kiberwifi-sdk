@@ -35,4 +35,5 @@
 ## Note
 
 - `KIBER_CONNECTION_REFUSED` viene anche gestito internamente con dialog dedicata.
-- Le dialog radio (Wi-Fi/Bluetooth spenti) vengono triggerate dal manager quando host app è foreground.
+- Le dialog radio vengono triggerate dal manager quando host app e' foreground: Bluetooth durante scan BLE, Wi-Fi solo quando parte la fase `CONNECTING`.
+
