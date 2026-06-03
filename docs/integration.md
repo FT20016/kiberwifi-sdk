@@ -1,4 +1,4 @@
-# Integrazione SDK
+﻿# Integrazione SDK
 
 ## 1. Dipendenza
 
@@ -8,7 +8,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.kiber:kiberwifi-sdk:0.2.9")
+    implementation("com.kiber:kiberwifi-sdk:0.2.10")
 }
 ```
 
@@ -141,3 +141,4 @@ com.kiber.kiberwifi.KiberWifiServiceManager.resetSessionState()
 ```
 
 (Se vuoi mantenere comportamento background anche ad app chiusa, non chiamare `stop`.)
+

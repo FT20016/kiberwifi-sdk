@@ -270,14 +270,15 @@ public class KiberWifiServiceManager extends Service {
             Log.i(TAG, "enableConnect() ignored: another app is already managing Kiber WiFi");
             return;
         }
-        if (!serviceRunning && !holdsInterAppLock) {
-            Log.i(TAG, "enableConnect() ignored: manager not running");
-            return;
-        }
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putBoolean(PREF_CONNECT_ENABLED, true)
                 .apply();
+        if (!serviceRunning && !holdsInterAppLock) {
+            Log.i(TAG, "enableConnect() requested while manager is not running: starting manager");
+            start(context.getApplicationContext(), buildAssociatedNotificationText(context), false);
+            return;
+        }
         Intent intent = new Intent(context, KiberWifiServiceManager.class);
         intent.setAction(ACTION_ENABLE_CONNECT);
         ContextCompat.startForegroundService(context, intent);

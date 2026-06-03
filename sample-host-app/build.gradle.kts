@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     alias(libs.plugins.android.application)
 }
 
@@ -36,5 +36,6 @@ dependencies {
     implementation(libs.activity)
     implementation(libs.constraintlayout)
 
-    implementation("com.kiber:kiberwifi-sdk:0.2.9")
+    implementation("com.kiber:kiberwifi-sdk:0.2.10")
 }
+

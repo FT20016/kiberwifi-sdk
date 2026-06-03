@@ -1,4 +1,4 @@
-# Kiber WiFi SDK
+﻿# Kiber WiFi SDK
 
 SDK Android per gestione BLE + connessione Wi-Fi KIBERSCOPE tramite foreground service.
 
@@ -10,7 +10,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.kiber:kiberwifi-sdk:0.2.9")
+    implementation("com.kiber:kiberwifi-sdk:0.2.10")
 }
 ```
 
@@ -97,3 +97,4 @@ Il prompt Wi-Fi compare solo quando il dispositivo e' stato trovato e parte davv
 - Eventi e stati: [docs/events.md](docs/events.md)
 - Permessi e comportamento runtime: [docs/permissions.md](docs/permissions.md)
 - Versioning: [CHANGELOG.md](CHANGELOG.md)
+

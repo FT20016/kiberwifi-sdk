@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.10
+- Fixed a race where `enableConnect(...)` could be called before the foreground service finished starting, causing the target BLE device to be found without starting the Wi-Fi connection.
+- `enableConnect(...)` now persists the connect intent and starts/reactivates the manager when needed.
+
 ## 0.2.9
 - Split radio prompts so BLE scanning only requires Bluetooth, while Wi-Fi is requested only when a target is found and connection starts.
 - Removed additional public API entry points and kept the SDK surface centered on `start(...)`, `changeDeviceSerial(...)`, `enableConnect(...)`, `disableConnect(...)`, `stop(...)`, and `resetSessionState()`.
